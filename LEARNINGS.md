@@ -428,3 +428,41 @@ Where I went beyond or away from the plan:
   milestones that produce those events, not before there is something to log.
 - Not done: `decision` is `allow` for an unknown tool name (the next event shows `not_found`), and a caller that
   forgets to pass a `redactor` gets shape-only redaction.
+
+
+## M5b: The same question with the SDK's `tool_runner` (2026-11-22)
+
+One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are our own three, wrapped with
+`beta_tool`, so only the loop differs. Our own loop ran the same question once (M5 real run).
+
+| | Our `run_agent` | SDK `tool_runner` |
+|---|---|---|
+| Model calls | 2 | 2 |
+| Input / output tokens | 2,702 / 593 | 2,333 / 676 |
+| `.env` read | refused, `permission_denied` | refused, `permission_denied` |
+| Fake key in the final answer | `[REDACTED]` | **shown in plain text** (line 44 of `m4_ask_repo.py`) |
+| Trajectory log | 10 events, readable with `jq` | none (a traceback on stderr) |
+| Code that drives the loop | `agent/loop.py`, 199 lines | about a dozen lines in the script |
+
+- **What the SDK gave for free:** the loop itself, the pairing of `tool_use` and `tool_result`, a `max_iterations`
+  limit, and the tool schema generated from a function signature and docstring. For a read-only question it
+  worked the first time.
+- **What our loop adds, and the run showed one of them:** the key leaked because nothing sits between the tool and
+  the model that cleans the text. The deny-list kept `.env` out, but a secret that is already in an ordinary file
+  (here the script's own source) went straight into the answer. Redaction in our loop is the layer that stops this.
+  (I expected the leak to come from `notes.txt`, which this script does not create. It came from the script's own
+  source, because the copied `experiments/` folder contains the fake key.)
+- **Other differences, read from the code and the output, not measured:**
+  - The SDK catches an exception from a tool and prints a traceback on stderr. The model quoted the exception text
+    back to us, so that text reaches the model. Ours sends only the message of a `ToolError`; for a bug in a tool it
+    sends a fixed sentence and keeps the traceback for the log.
+  - Our wrapper skips `ToolRegistry.dispatch`, so a permission check at dispatch, the "did you mean" hint and the
+    argument-error messages are not in this run. Wrapping our tools with `beta_tool` was a choice of this
+    experiment, not a limit of the SDK.
+  - No `stop_reason` table: the SDK's runner decides what to do with `max_tokens` or `refusal`; ours stops and says why.
+- **The token numbers prove nothing.** One run each, a different tool description (generated, not hand-written),
+  and a different answer length. Any claim that one is cheaper needs at least 3 runs per side (the rule from Act III).
+- **Not done:** the first question (`check_stop_reason`) was not run with `tool_runner`.
+- **Decision:** keep our loop. The reasons are the secret redaction, the trajectory, the permission check at
+  dispatch and the stated `stop_reason` handling, which are the things this project is about. For a throwaway
+  read-only script, `tool_runner` is a good choice.

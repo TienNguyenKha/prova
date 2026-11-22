@@ -26,6 +26,8 @@ Update this file at the end of every working session.
   `trajectory`), `permissions.yaml` (`review`, `fix`), deny-list in `resolve_inside`, `ToolRegistry.is_denied`,
   secrets redacted in tool results and in the log, `run_agent(trajectory=, redactor=)`. 395 unit tests, and one real
   run with a fake `.env` whose trajectory reads with `jq` (`m4_ask_repo.py --bait`). Entry in `LEARNINGS.md`.
+- **M5b** `tool_runner` comparison (`experiments/act2/m5_tool_runner.py`, one run): same tools, SDK loop; the fake
+  key leaked into the answer because that loop has no redaction. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -40,8 +42,6 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- Now (optional part of M4): rewrite the M4 question with the SDK's `tool_runner` and compare line counts and
-  what our loop adds (`stop_reason` table, permissions, classified errors, stated limits).
 - M6: number the lines of a `read_file` snapshot (in M4 the model could only quote line numbers that `search_code` gave it).
 - Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up) belongs to the caller, so decide it
   when the first real caller (the CLI or a worker) exists.
@@ -79,3 +79,4 @@ Update this file at the end of every working session.
 | 2026-11-22 | Profiles (`permissions.yaml`) are default-deny and every profile also gets `DEFAULT_DENY_PATHS`; loaded with `safe_load`, any problem is a `ConfigError` | A profile can add protection but cannot remove the secrets baseline. A broken config must stop the run, not fall back to something permissive. |
 | 2026-11-22 | Secrets are redacted twice: in the tool result before the model sees it, and in the trajectory before it reaches the disk; by shape and by the value of sensitive environment variables | The model must not see a key, and the log must not keep one. The environment is passed in explicitly so the library never reads `os.environ` on its own. |
 | 2026-11-22 | The trajectory is JSONL with `schema_version`, `ts`, `run_id`, `seq`; opened and closed per event; a write failure raises `TrajectoryError` and stops the run; `tool_call` is logged before dispatch | An event is on disk when `write` returns, so a crash cannot lose it. A run that cannot be audited should not continue. |
+| 2026-11-22 | Keep our own loop instead of the SDK `tool_runner` | In one run the SDK loop leaked a secret that was in an ordinary file (no redaction layer) and left no trajectory. The comparison had n=1 per side, so the token difference is not a finding. |
