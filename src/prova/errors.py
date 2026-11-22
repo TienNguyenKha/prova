@@ -57,5 +57,29 @@ class LLMError(ProvaError):
     """Error from the model-calling layer. Use `raise LLMError(...) from e` to keep the SDK exception."""
 
 
+class StructuredErrorKind(StrEnum):
+    """Why structured output was not accepted. Callers branch on this instead of parsing messages."""
+
+    TRUNCATED = "truncated"
+    REFUSED = "refused"
+    UNEXPECTED_STOP = "unexpected_stop"
+    NO_TEXT = "no_text"
+    INVALID_JSON = "invalid_json"
+    MISSING_FIELD = "missing_field"
+    OUT_OF_ENUM = "out_of_enum"
+    OUT_OF_RANGE = "out_of_range"
+    EXTRA_FIELD = "extra_field"
+    WRONG_TYPE = "wrong_type"
+    OTHER = "other"
+
+
+class StructuredError(ProvaError):
+    """The model's output could not be turned into trusted structured data. Callers must fail closed."""
+
+    def __init__(self, kind: StructuredErrorKind, message: str) -> None:
+        super().__init__(message)
+        self.kind = kind
+
+
 class BudgetExceededError(ProvaError):
     """Budget exceeded (tokens, money, turns)."""

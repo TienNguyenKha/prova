@@ -21,7 +21,7 @@ The questions to answer are listed under "Questions for LEARNINGS.md" in each mi
   Order was test first for config, registry and app; each test was seen failing before the code existed.
 - **Broke / surprised me:**
   - `uv init` filled `authors` from `git config`, which was my work email. Easy to leak into a public repo.
-  - My shell had `VIRTUAL_ENV` pointing at the `atlas-agents` venv. `uv` ignored it with a warning, but it shows how
+  - My shell had `VIRTUAL_ENV` pointing at another project's venv. `uv` ignored it with a warning, but it shows how
     easily two projects share an environment by accident.
   - The plan's verification table asks for "registry frozen after `build_app`", but `App` has no registry until M4.
     The plan and the step list disagreed; I logged it in the Decisions Log instead of faking a test.
@@ -47,7 +47,7 @@ arguments), it is data: return an error result so the model can read it and corr
 (duplicate registration, `get` with a name we never registered, missing config), it is a bug or a setup mistake and
 must be an exception, loud and early. This is why `Registry` has both `get` (raises `UnknownNameError`) and `find`
 (returns `None`, for names that come from the model). The conversion from exception to data happens at exactly one
-place, the tool boundary (M4); the old `"Error: ..."` strings in `atlas-agents` mixed the two and hid failures.
+place, the tool boundary (M4); returning failures as plain `"Error: ..."` strings mixes the two and hides them.
 
 **Why must the tool order be stable?**
 Two reasons. (1) **Prompt caching** (M23): the tool list is part of the request prefix, and a cache hit needs a
@@ -225,3 +225,88 @@ the only record of what the model asked for; a result only means something as th
 In this experiment, nothing visible: both replies said the file does not exist and offered to try another path (one
 sample each). I cannot say what the flag changes inside the model. I keep setting it for every `ToolError`, because it
 is an explicit machine-readable signal and costs nothing, and I write the text so that it explains the failure by itself.
+
+## M3: Structured output (2026-11-22)
+
+- **Built:** `prova/structured.py` (`BugClassification`, `extract`, `check_stop_reason`, `parse_structured`),
+  `StructuredError` carrying a `StructuredErrorKind`, `prova/stats.py` (`mean_sem`), 30 unit tests (test first),
+  20 code snippets in `experiments/act1/m3_cases/`, and hand-run scripts: `m3_tool_choice_probe.py`,
+  `m3_extract_smoke.py`, `m3_compare.py`, `m3_peek_failures.py`.
+- **Broke / surprised me:**
+  - I predicted that asking for "ONLY JSON" would break mostly through markdown fences. **No reply in 120 used a
+    fence.** The real failures were prose, extra fields, and once a syntax error.
+  - The same prompt works on one model and fails on the other: 98.3% valid on Haiku, 33.3% on Sonnet. A bigger
+    model was much worse at prompt-only JSON.
+  - Failures depend on the snippet: the same snippets failed in all 3 runs.
+  - The SDK helper `messages.parse()` validates inside the call, so on a cut-off or refused reply you get a
+    validation error and never see `stop_reason`. `extract()` therefore calls `messages.create(output_config=...)`
+    and validates by itself.
+  - There is no `seed` parameter and `temperature`/`top_p`/`top_k` were removed from the message methods, so "3
+    seeds" are 3 plain repetitions.
+  - One structured-output reply on Sonnet hit `max_tokens` at 4096 (the slowest call, 21.2 s). I do not know what it
+    wrote; a classification normally needs about 150 tokens.
+  - No reply was refused, although 9 of the 20 snippets are vulnerable code (SQL, SSRF, code execution).
+  - `ruff` rule `S105` fired on a test variable named `secret`: the rule reacts to the name, not the value.
+- **Learned:** a reply that is complete (`end_turn`) can still be unusable, and a reply that parses can still be
+  the wrong shape. Both checks are needed, and which one fires says what went wrong.
+
+### Forcing `tool_choice` (method B)
+
+Same tool, only `tool_choice` changed:
+
+| Model | `auto` (control) | `any` | `tool` (force `report_bug`) |
+|---|---|---|---|
+| claude-sonnet-5-5 | accepted | HTTP 400 | HTTP 400 |
+| claude-haiku-5-5 | accepted | accepted | accepted |
+
+The 400 message is `tool_choice: type "tool" and "any" are not supported for this model.` It gives no reason. So the
+restriction is per model, not per model family. On Haiku, forced replies had only a `tool_use` block, while `auto`
+also produced a `thinking` block (one observation, not tested as a rule).
+
+### Comparison: 3 methods x 20 snippets x 3 runs (share of replies, %, mean ± SEM over 3 runs)
+
+Haiku (claude-haiku-5-5), 60 replies per method:
+
+| Method | ok | invalid_json |
+|---|---|---|
+| A. prompt "only JSON" | 98.3 ± 1.7 | 1.7 ± 1.7 |
+| B. forced tool | 100.0 ± 0.0 | 0 |
+| C. structured outputs (`extract`) | 100.0 ± 0.0 | 0 |
+
+Sonnet (claude-sonnet-5-5), 60 replies per method (B is rejected on this model):
+
+| Method | ok | extra_field | invalid_json | truncated |
+|---|---|---|---|---|
+| A. prompt "only JSON" | 33.3 ± 8.8 | 31.7 ± 6.0 | 35.0 ± 2.9 | 0 |
+| C. structured outputs (`extract`) | 98.3 ± 1.7 | 0 | 0 | 1.7 ± 1.7 |
+
+Reading it: on Haiku the methods cannot be told apart (the A failure is 1 reply of 60, about as large as its SEM).
+On Sonnet the gap (33% vs 98%) is far larger than the SEM, so it is a real difference for this prompt. Latency
+medians were the same for A and C (Haiku 2.8 s, Sonnet 3.1 s); forced tool on Haiku was faster (1.8 s mean vs 2.8 s),
+cause not tested. Limits: one prompt for A (not tuned), 20 short snippets, formal validity only (not whether the
+classification is correct).
+
+What the failing replies looked like (method A, Sonnet):
+- `invalid_json` (21): all `expected value at line 1 column 1`. The checked replies were complete answers
+  (`end_turn`) written as prose ("The most important bug is that ...") instead of JSON.
+- `extra_field` (19): valid JSON with a key that was not asked for, 15 times `severity_note`.
+- On Haiku, the single failure was a syntax error at column 152 (cause unknown, raw text was not kept).
+
+### Answers to the milestone questions
+
+**In which ways does asking for JSON in the prompt fail, and which is the most dangerous for a guardrail?**
+Observed: (1) prose instead of JSON, 35% on Sonnet; (2) valid JSON with extra keys, 32% on Sonnet; (3) broken JSON
+syntax, 1 of 60 on Haiku. Not observed: markdown fences. The most dangerous kind is not a particular shape but any
+failure that is routed to a "continue" path (fail-open). Prose is the worst case here: it is frequent, it looks like a
+normal finished reply (`end_turn`), and it depends on the input, since the same snippets always triggered it. If an
+attacker shapes the text being classified, they may be able to push the model into prose and walk through a
+fail-open guard. That last step is an inference from the pattern, not something I tested. Fail-closed handling of
+`StructuredError` removes the problem whatever the kind.
+
+**Why did the API drop forced `tool_choice` while still keeping the output on schema?**
+I do not know why the restriction exists: the error message gives no reason, and Haiku still accepts it. What I
+measured: structured outputs produced no `invalid_json` and no `extra_field` in 120 replies on two models, which fits
+the documented idea that generation is constrained to the schema. I did not verify that mechanism myself. It does not
+guarantee completeness (one reply was truncated), and the SDK's `transform_schema` turns numeric limits such as
+`ge`/`le` into plain text in the description (read from its source; not seen failing live, because no
+`out_of_range` appeared). So the `stop_reason` check and the second validation stay.

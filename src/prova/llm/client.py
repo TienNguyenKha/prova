@@ -4,7 +4,8 @@ from collections.abc import Sequence
 from typing import Protocol
 
 import anthropic
-from anthropic.types import Message, MessageParam
+from anthropic import Omit, omit
+from anthropic.types import Message, MessageParam, OutputConfigParam
 
 from prova.config import Settings
 
@@ -12,9 +13,17 @@ from prova.config import Settings
 class MessagesAPI(Protocol):
     """The part of `client.messages` we actually use."""
 
-    def create(self, *, model: str, max_tokens: int, messages: Sequence[MessageParam]) -> Message: ...
+    def create(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: Sequence[MessageParam],
+        system: str | Omit = omit,
+        output_config: OutputConfigParam | Omit = omit,
+    ) -> Message: ...
 
-    # TODO(M4): add stream() and system/tools params once the agent loop lives in src/.
+    # TODO(M4): add stream() and tools once the agent loop lives in src/.
     # TODO(M23): add count_tokens().
 
 

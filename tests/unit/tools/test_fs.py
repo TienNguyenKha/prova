@@ -123,7 +123,7 @@ def test_runner_missing_or_non_string_path_is_invalid_args(root: Path, args: dic
 
 
 def test_every_advertised_tool_can_be_dispatched(root: Path) -> None:
-    # Guards the schema/dispatcher drift bug from the book (`search_web` vs `web_search`).
+    # Guards against schema/dispatcher drift: advertised as `search_web` but dispatched as `web_search`.
     run = make_fs_runner(root)
     for tool in FS_TOOLS:
         assert isinstance(run(tool["name"], {"path": "hello.txt"}), str)

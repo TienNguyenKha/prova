@@ -1,0 +1,182 @@
+[
+  {
+    "id": "c01",
+    "file": "c01_t001.py",
+    "split": "dev",
+    "adapted": "verbatim",
+    "guess_category": "security",
+    "bug": "regex `ignore (all |your |previous )?instructions` misses 'Ignore all previous instructions'",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c02",
+    "file": "c02_t002.py",
+    "split": "dev",
+    "adapted": "comments removed; final compare_images() call added for context",
+    "guess_category": "logic",
+    "bug": "the elif repeats `len(sys.argv) == 3`, so the URL branch is unreachable",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c03",
+    "file": "c03_t004.py",
+    "split": "dev",
+    "adapted": "emoji removed from prints; imports added",
+    "guess_category": "other",
+    "bug": "prints to stdout while stdio_server() uses stdout for JSON-RPC",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c04",
+    "file": "c04_t006.py",
+    "split": "dev",
+    "adapted": "imports and client added",
+    "guess_category": "error_handling",
+    "bug": "json.loads fails on ```json fences; the except branch returns blocked=False (fail-open)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c05",
+    "file": "c05_t007.py",
+    "split": "dev",
+    "adapted": "two excerpts joined; comments removed",
+    "guess_category": "logic",
+    "bug": "SessionTrace(**s) leaves `executions` as raw dicts instead of NodeExecution objects",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c06",
+    "file": "c06_t009.py",
+    "split": "dev",
+    "adapted": "__init__ and audit() omitted; imports added",
+    "guess_category": "security",
+    "bug": "when the security agent is unreachable the fallback returns `approved` unless PII is found (fail-open)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c07",
+    "file": "c07_t011.py",
+    "split": "dev",
+    "adapted": "excerpts joined; state dict simplified; comments and prints removed",
+    "guess_category": "logic",
+    "bug": "dedupe is per calendar day, so every night the same issue gets a new plan comment",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c08",
+    "file": "c08_t014.py",
+    "split": "dev",
+    "adapted": "wrapped in class AgentHarness; import added",
+    "guess_category": "security",
+    "bug": "allowlist checks `split()[0]` but the command runs with shell=True (`pytest && other`)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c09",
+    "file": "c09_t016.py",
+    "split": "dev",
+    "adapted": "docstring and comment removed; score_tool_use() paraphrases the original use at line 248",
+    "guess_category": "logic",
+    "bug": "mock_agent hard-codes tools_used, so tool scoring never measures the agent",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c10",
+    "file": "c10_t017.py",
+    "split": "dev",
+    "adapted": "create() call simplified; imports added",
+    "guess_category": "error_handling",
+    "bug": "regex `\\{[^{}]*\\}` cannot match JSON containing braces (code); failure silently becomes {}",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c11",
+    "file": "c11_t019.py",
+    "split": "dev",
+    "adapted": "prints shortened",
+    "guess_category": "logic",
+    "bug": "the lesson is summarised from `evidence` of BEFORE the patch, not from the patch's outcome",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c12",
+    "file": "c12_v002.py",
+    "split": "vuln",
+    "adapted": "docstring NOTE and one comment removed (they gave the bug away)",
+    "guess_category": "security",
+    "bug": "keyword blocklist on LLM-generated SQL can be bypassed; the query runs as given (CWE-89)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c13",
+    "file": "c13_v004.py",
+    "split": "vuln",
+    "adapted": "comment removed; import added",
+    "guess_category": "security",
+    "bug": "fetches any URL, including internal and cloud-metadata addresses (CWE-918)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c14",
+    "file": "c14_v005.py",
+    "split": "vuln",
+    "adapted": "early `return` replaced by `break` (that return belongs to heldout task t008); prints and data upload removed",
+    "guess_category": "security",
+    "bug": "without E2B the LLM-written code runs on the host machine (CWE-94)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c15",
+    "file": "c15_v006.py",
+    "split": "vuln",
+    "adapted": "dry-run branch and prints removed; imports added",
+    "guess_category": "security",
+    "bug": "writes files under names chosen by the model without checking the path (CWE-22)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c16",
+    "file": "c16_v007.py",
+    "split": "vuln",
+    "adapted": "trimmed; `try:` removed so the excerpt parses; `app = FastAPI()` and imports added",
+    "guess_category": "security",
+    "bug": "the websocket accepts any caller; Twilio request signature is never verified (CWE-345)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c17",
+    "file": "c17_v008.py",
+    "split": "vuln",
+    "adapted": "imports, request model and endpoints joined; last return line of get_task_status written by me",
+    "guess_category": "security",
+    "bug": "no authentication on any endpoint; webhook_url comes from the caller (CWE-306)",
+    "origin": "excerpt"
+  },
+  {
+    "id": "c18",
+    "file": "c18_h1.py",
+    "split": "handwritten",
+    "adapted": "n/a",
+    "guess_category": "resource_leak",
+    "bug": "the sqlite connection and the output file are never closed",
+    "origin": "handwritten"
+  },
+  {
+    "id": "c19",
+    "file": "c19_h2.py",
+    "split": "handwritten",
+    "adapted": "n/a",
+    "guess_category": "error_handling",
+    "bug": "a failed charge is swallowed, then the invoice is still marked paid",
+    "origin": "handwritten"
+  },
+  {
+    "id": "c20",
+    "file": "c20_h3.py",
+    "split": "handwritten",
+    "adapted": "n/a",
+    "guess_category": "other",
+    "bug": "rebuilds a lowercase list on every iteration: O(n^2) deduplication",
+    "origin": "handwritten"
+  }
+]

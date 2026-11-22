@@ -15,6 +15,9 @@ Update this file at the end of every working session.
   Step 6 (stream with a tool) moved to M2.
 - **M2** First hand-written tool: `prova/llm/tool_messages.py`, `prova/tools/fs.py` (confined `read_file`),
   25 unit tests, `m2_tool_loop.py`, `m2_break_rules.py`, `m2_stream_tool.py`. Rules table and answers in `LEARNINGS.md`.
+- **M3** Structured output: `prova/structured.py` (`extract`, `check_stop_reason`, `parse_structured`,
+  `BugClassification`), `StructuredError` + `StructuredErrorKind`, `prova/stats.py` (`mean_sem`), 30 unit tests,
+  20 snippets in `experiments/act1/m3_cases/`, and four hand-run scripts. Both comparison tables are in `LEARNINGS.md`.
 
 ## In Progress
 
@@ -24,7 +27,9 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M3: structured output.
+- Close Act I: review the code against `plans/shared/anti-patterns.md`, check ROADMAP and LEARNINGS (M0 to M3).
+- M4: read-only ReAct loop (Act II). Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up)
+  belongs to the caller, so decide it when the first caller exists.
 
 ### P1
 
@@ -48,3 +53,6 @@ Update this file at the end of every working session.
 | 2026-11-22 | `UsageRecord` is a frozen dataclass; experiment CSVs carry no `schema_version` | Frozen follows the conventions for internal trusted values. The CSV is a throwaway experiment log; the trajectory log (M5) is a durable format and will carry `schema_version`. |
 | 2026-11-22 | `LLMClient` stays minimal (`create` only); experiments call the SDK directly | The Protocol grows when Prova's own code needs it (`stream`, `system`/`tools` when the agent loop moves into `src/` at M4; `count_tokens` at M23). |
 | 2026-11-22 | `read_file` confines paths with `resolve()` + `is_relative_to`; `build_tool_results` always sends ONE user message | Resolving first defeats `..`, symlinks and sibling-prefix tricks. The API accepted split results in M2, but one message is the documented shape and keeps the pairing rule easy to reason about. Open: OS permission errors (TODO M4) and the check-then-read gap (sandbox, M7). |
+| 2026-11-22 | `extract()` calls `messages.create(output_config=...)` and validates itself, not `messages.parse()` | `parse()` validates inside the call, so a truncated or refused reply raises a validation error and `stop_reason` is never visible. Structured outputs (method C) is the default; forced `tool_choice` is not used because the main model rejects it (HTTP 400). |
+| 2026-11-22 | `StructuredError` carries a `StructuredErrorKind`; messages name the field and rule but never echo the model's output | Callers branch on the enum, not on text. Untrusted model output must not leak into logs or error messages. |
+| 2026-11-22 | "3 seeds" means 3 repetitions; `ruff` skips `experiments/act1/m3_cases/` | The API has no `seed` and sampling parameters were removed. The snippets are deliberately buggy sample data, never imported. |

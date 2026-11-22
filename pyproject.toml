@@ -27,6 +27,8 @@ dev = [
 
 [tool.ruff]
 line-length = 110
+# Sample code with deliberate bugs, used as data for the M3 experiment. Never linted or imported.
+extend-exclude = ["experiments/act1/m3_cases"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RET", "PTH", "S", "BLE", "T20"]
