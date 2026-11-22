@@ -32,7 +32,7 @@ class ReadFileTool:
         self._max_bytes = max_bytes
 
     def run(self, args: ReadFileArgs, ctx: RunContext) -> ToolResult:
-        target = resolve_inside(ctx.workspace, args.path)
+        target = resolve_inside(ctx.workspace, args.path, deny=ctx.deny)
         if not target.exists():
             raise ToolError(ErrorCode.NOT_FOUND, f"no such file: {args.path}")
         if target.is_dir():
@@ -99,15 +99,20 @@ class ListDirTool:
         self._max_entries = max_entries
 
     def run(self, args: ListDirArgs, ctx: RunContext) -> ToolResult:
-        target = resolve_inside(ctx.workspace, args.path)
+        target = resolve_inside(ctx.workspace, args.path, deny=ctx.deny)
         if not target.exists():
             raise ToolError(ErrorCode.NOT_FOUND, f"no such directory: {args.path}")
         if not target.is_dir():
             message = f"{args.path} is a file, not a directory; use read_file to read it"
             raise ToolError(ErrorCode.INVALID_ARGS, message)
 
+        workspace = ctx.workspace.resolve()
         try:
-            entries = sorted(target.iterdir(), key=lambda entry: entry.name)
+            # Protected entries are hidden completely: not listed, not counted. Saying "2 entries are hidden"
+            # would only invite the model to try to read them.
+            names = ((e, e.relative_to(workspace).as_posix()) for e in target.iterdir())
+            allowed = (entry for entry, relative in names if not ctx.deny.matches(relative))
+            entries = sorted(allowed, key=lambda entry: entry.name)
         except PermissionError:
             message = f"cannot list {args.path}: permission denied"
             raise ToolError(ErrorCode.PERMISSION_DENIED, message) from None

@@ -4,13 +4,14 @@ version = "0.1.0"
 description = "Security coding agent: no proof, no finding."
 readme = "README.md"
 authors = [
-    { name = "tiennk", email = "tien.nguyen26@mservice.com.vn" }
+    { name = "tiennk" }
 ]
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=2.12.0",
     "pydantic>=2.14.4",
     "python-dotenv>=1.2.4",
+    "pyyaml>=6.0.4",
 ]
 
 [build-system]

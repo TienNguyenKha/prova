@@ -22,22 +22,25 @@ Update this file at the end of every working session.
   `ToolRegistry`, `read_file`, `list_dir`, `search_code`), `AnthropicClient` (SDK errors become `LLMError`),
   permissions enforced at dispatch, `build_app` registers and freezes the tools. 237 unit tests, and one real run
   (`experiments/act2/m4_ask_repo.py`). Trace, token table and answer in `LEARNINGS.md`.
+- **M5** Workspace, permission profiles, trajectory log: `harness/` (`patterns`, `permissions`, `redact`,
+  `trajectory`), `permissions.yaml` (`review`, `fix`), deny-list in `resolve_inside`, `ToolRegistry.is_denied`,
+  secrets redacted in tool results and in the log, `run_agent(trajectory=, redactor=)`. 395 unit tests, and one real
+  run with a fake `.env` whose trajectory reads with `jq` (`m4_ask_repo.py --bait`). Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
 
 ## In Progress
 
-- (nothing yet; next is M1)
+- (nothing; M5 is done and waits for the commit and the LEARNINGS rewrite)
 
 ## Backlog
 
 ### P0 (next up)
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
-- M5: workspace, permission profiles, trajectory log. Must include a deny-list for secret files (`.env`, keys) and
-  redaction of secrets in logs: with the repo root as workspace, `read_file(".env")` is valid today (found in M4).
-- After M5 (optional part of M4): rewrite the M4 question with the SDK's `tool_runner` and compare line counts and
+- Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
+- Now (optional part of M4): rewrite the M4 question with the SDK's `tool_runner` and compare line counts and
   what our loop adds (`stop_reason` table, permissions, classified errors, stated limits).
 - M6: number the lines of a `read_file` snapshot (in M4 the model could only quote line numbers that `search_code` gave it).
 - Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up) belongs to the caller, so decide it
@@ -71,3 +74,8 @@ Update this file at the end of every working session.
 | 2026-11-22 | Permissions are enforced in `ToolRegistry.dispatch` (from `RunContext.permissions`), not only in the tool list shown to the model | The model can ask for a tool it was never offered (a hallucination or an injected instruction). The check runs before the arguments are validated, so a denied tool reveals nothing about what it expects. |
 | 2026-11-22 | `search_code` is pure Python and matches literal text, not regular expressions | `ripgrep` is not installed here, and every extra binary in the sandbox image is one more thing to pin (M7). A model-supplied regex can hang `re`, which has no timeout. Regex comes back together with a real timeout. |
 | 2026-11-22 | Any `stop_reason` other than `end_turn` and `tool_use` ends the run, and no tool in such a reply is run; no retry of our own | A cut or unrecognised reply is not a trustworthy request (its arguments may be incomplete). The SDK already retries transient errors, so an `LLMError` means it has given up. |
+| 2026-11-22 | The deny-list is checked inside `resolve_inside`, on the resolved path, case-insensitive; a protected path gets the same `permission_denied` whether or not it exists | One place means no tool can forget it, and resolving first means a symlink cannot smuggle a secret out. The same message for both cases leaves no way to learn which files exist. |
+| 2026-11-22 | `list_dir` hides protected entries; `search_code` skips them and counts them as "protected" | A listing that shows a name the model may not open invites probing. A search needs to say it was partial, but not which file was skipped. |
+| 2026-11-22 | Profiles (`permissions.yaml`) are default-deny and every profile also gets `DEFAULT_DENY_PATHS`; loaded with `safe_load`, any problem is a `ConfigError` | A profile can add protection but cannot remove the secrets baseline. A broken config must stop the run, not fall back to something permissive. |
+| 2026-11-22 | Secrets are redacted twice: in the tool result before the model sees it, and in the trajectory before it reaches the disk; by shape and by the value of sensitive environment variables | The model must not see a key, and the log must not keep one. The environment is passed in explicitly so the library never reads `os.environ` on its own. |
+| 2026-11-22 | The trajectory is JSONL with `schema_version`, `ts`, `run_id`, `seq`; opened and closed per event; a write failure raises `TrajectoryError` and stops the run; `tool_call` is logged before dispatch | An event is on disk when `write` returns, so a crash cannot lose it. A run that cannot be audited should not continue. |

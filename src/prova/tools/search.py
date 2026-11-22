@@ -60,7 +60,7 @@ class SearchCodeTool:
         self._max_line_chars = max_line_chars
 
     def run(self, args: SearchCodeArgs, ctx: RunContext) -> ToolResult:
-        base = resolve_inside(ctx.workspace, args.path)
+        base = resolve_inside(ctx.workspace, args.path, deny=ctx.deny)
         if not base.exists():
             raise ToolError(ErrorCode.NOT_FOUND, f"no such file or directory: {args.path}")
         workspace = ctx.workspace.resolve()
@@ -78,7 +78,9 @@ class SearchCodeTool:
             if searched + skipped >= self._max_files:
                 stopped_at_file_limit = True
                 break
-            text = self._read_text(file)
+            # A protected file is never even opened. It is counted as skipped, so the model knows that its
+            # results may be incomplete (without learning anything about the file).
+            text = None if ctx.deny.matches(relative) else self._read_text(file)
             if text is None:
                 skipped += 1
                 continue
@@ -104,8 +106,8 @@ class SearchCodeTool:
             "truncated": truncated,
         }
         skipped_note = (
-            f"; skipped {count_noun(skipped, 'file', 'files')} (binary, unreadable, a symlink or over "
-            f"{self._max_file_bytes} bytes)"
+            f"; skipped {count_noun(skipped, 'file', 'files')} "
+            f"(binary, unreadable, protected, a symlink or over {self._max_file_bytes} bytes)"
             if skipped
             else ""
         )

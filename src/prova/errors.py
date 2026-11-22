@@ -87,5 +87,9 @@ class StructuredError(ProvaError):
         self.kind = kind
 
 
+class TrajectoryError(ProvaError):
+    """The log of a run could not be written. A run that cannot be logged cannot be audited, so it stops."""
+
+
 class BudgetExceededError(ProvaError):
     """Budget exceeded (tokens, money, turns)."""

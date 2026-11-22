@@ -3,13 +3,24 @@
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from anthropic import omit
 from anthropic.types import ContentBlockParam, Message, MessageParam, ToolResultBlockParam
 
 from prova.config import Settings
 from prova.errors import LLMError
+from prova.harness.redact import Redactor
+from prova.harness.trajectory import (
+    ModelRequestEvent,
+    ModelResponseEvent,
+    OutcomeEvent,
+    TaskEvent,
+    ToolCallEvent,
+    ToolResultEvent,
+    TrajectoryEvent,
+    TrajectoryWriter,
+)
 from prova.llm.client import LLMClient
 from prova.llm.stop import describe_refusal
 from prova.llm.usage import UsageLog, UsageRecord
@@ -41,19 +52,45 @@ def run_agent(
     system: str,
     max_iterations: int = 30,
     clock: Callable[[], float] = time.perf_counter,
+    trajectory: TrajectoryWriter | None = None,
+    redactor: Redactor | None = None,
 ) -> AgentResult:
     """Run the model on `task` until it answers, fails, or has used `max_iterations` calls.
 
     Which tools the model is offered, and which it may actually run, both come from `ctx.permissions`.
+    With a `trajectory`, every step is logged; a log that cannot be written stops the run (TrajectoryError).
+    The `redactor` cleans tool results before the model sees them (the trajectory redacts on its own).
     """
+    redact = redactor if redactor is not None else Redactor()
     messages: list[MessageParam] = [{"role": "user", "content": task}]
     offered = tools.to_api_tools(ctx.permissions)
     usage = UsageLog()
 
+    def log(event: TrajectoryEvent) -> None:
+        if trajectory is not None:
+            trajectory.write(event)
+
     def finish(status: Status, iterations: int, *, final_text: str = "", detail: str = "") -> AgentResult:
+        log(
+            OutcomeEvent(
+                status=status,
+                iterations=iterations,
+                detail=detail,
+                input_tokens=usage.total_input_tokens,
+                output_tokens=usage.total_output_tokens,
+            )
+        )
         return AgentResult(status, final_text, iterations, usage, tuple(messages), detail)
 
+    # Logged BEFORE the first model call: if the log cannot be written, no model call goes unlogged.
+    log(TaskEvent(task=task))
+
     for turn in range(1, max_iterations + 1):
+        log(
+            ModelRequestEvent(
+                turn=turn, model=settings.model, messages=len(messages), tools=[t["name"] for t in offered]
+            )
+        )
         started = clock()
         try:
             response = llm.messages.create(
@@ -67,6 +104,16 @@ def run_agent(
             code = f" (HTTP {e.status_code})" if e.status_code is not None else ""
             return finish("error", turn, detail=f"{e}{code}")
         usage.add(_usage_record(turn, response, clock() - started))
+        log(
+            ModelResponseEvent(
+                turn=turn,
+                stop_reason=response.stop_reason,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                text=_text_of(response),
+                tool_calls=sum(1 for block in response.content if block.type == "tool_use"),
+            )
+        )
         # The SDK accepts the reply's blocks as they are; the tool_use blocks MUST stay in the history.
         messages.append({"role": "assistant", "content": cast(Iterable[ContentBlockParam], response.content)})
 
@@ -74,7 +121,8 @@ def run_agent(
         if reason == "end_turn":
             return finish("done", turn, final_text=_text_of(response))
         if reason == "tool_use":
-            messages.append({"role": "user", "content": _run_tools(response, tools, ctx)})
+            answers = _answer_tool_calls(response, tools, ctx, redact, log)
+            messages.append({"role": "user", "content": answers})
             continue
         # Everything below ends the run, and no tool in such a reply is run: the reply is not a complete,
         # trustworthy request. A cut-off call may have incomplete arguments.
@@ -90,13 +138,48 @@ def run_agent(
     return finish("max_iterations", max_iterations)
 
 
-def _run_tools(response: Message, tools: ToolRegistry, ctx: RunContext) -> list[ToolResultBlockParam]:
+def _answer_tool_calls(
+    response: Message,
+    tools: ToolRegistry,
+    ctx: RunContext,
+    redact: Redactor,
+    log: Callable[[TrajectoryEvent], None],
+) -> list[ToolResultBlockParam]:
     """Answer every tool_use block of the reply. All results go back in ONE message, in the same order."""
-    return [
-        tools.dispatch(block.name, block.input, ctx).to_tool_result_block(block.id)
-        for block in response.content
-        if block.type == "tool_use"
-    ]
+    answers: list[ToolResultBlockParam] = []
+    for block in response.content:
+        if block.type != "tool_use":
+            continue
+        denied = tools.is_denied(block.name, ctx)  # the harness's decision, not the tool's
+        # The call is logged BEFORE it runs: if the tool hangs or crashes, the log still shows what was asked.
+        log(
+            ToolCallEvent(
+                tool=block.name,
+                tool_use_id=block.id,
+                input=_as_object(block.input),
+                decision="deny" if denied else "allow",
+            )
+        )
+        result = tools.dispatch(block.name, block.input, ctx)
+        answers.append(result.to_tool_result_block(block.id, redact=redact.redact))
+        log(
+            ToolResultEvent(
+                tool=block.name,
+                tool_use_id=block.id,
+                success=result.success,
+                error_code=result.error_code.value if result.error_code is not None else None,
+                message=result.message,
+                chars=len(redact.redact(result.model_text())),  # how much the model was actually shown
+            )
+        )
+    return answers
+
+
+def _as_object(value: object) -> dict[str, Any]:
+    """The input of a tool call should be an object; if the model sent something else, log it as text."""
+    if isinstance(value, dict):
+        return cast(dict[str, Any], value)
+    return {"_not_an_object": repr(value)}
 
 
 def _text_of(response: Message) -> str:

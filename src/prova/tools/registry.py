@@ -35,6 +35,11 @@ class ToolRegistry:
             if tool.permission in allowed
         ]
 
+    def is_denied(self, name: str, ctx: RunContext) -> bool:
+        """True when the tool exists but this run may not use it. An unknown tool is NOT_FOUND, not denied."""
+        tool = self._tools.find(name)
+        return tool is not None and tool.permission not in ctx.permissions
+
     def dispatch(self, name: str, raw_input: object, ctx: RunContext) -> ToolResult:
         """Run the tool the model asked for. Mistakes of the model come back as data, never as exceptions."""
         tool = self._tools.find(name)
@@ -42,7 +47,7 @@ class ToolRegistry:
             return ToolResult.error(ErrorCode.NOT_FOUND, self._unknown_tool_message(name))
         # The model may ask for a tool it was never offered (a hallucination, or an injected instruction).
         # Checked before the arguments, so a denied tool reveals nothing about what it expects.
-        if tool.permission not in ctx.permissions:
+        if self.is_denied(name, ctx):
             return ToolResult.error(ErrorCode.PERMISSION_DENIED, f"tool {name!r} is not allowed in this run")
 
         try:

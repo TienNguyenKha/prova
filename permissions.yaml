@@ -1,0 +1,11 @@
+# Run profiles: what a run may do. Nothing is allowed unless it is listed here.
+# Every profile also gets the default deny-list (secrets) from prova.harness.permissions, on top of its own.
+profiles:
+  review:
+    allow: [read]
+    deny_paths: ["hidden_tests/**"]
+
+  fix:
+    allow: [read, write, exec]
+    write_paths: ["**"]
+    deny_paths: [".git/**", "hidden_tests/**"]

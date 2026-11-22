@@ -159,3 +159,22 @@ def test_a_tool_registry_refuses_a_registry_that_is_not_frozen() -> None:
     registry.register(EchoTool())
     with pytest.raises(RegistryError, match="frozen"):
         ToolRegistry(registry)  # forgetting to freeze would let tools appear after the app is built
+
+
+# --- is_denied: the one definition of "this run may not use that tool" -------
+
+
+def test_a_tool_outside_the_runs_permissions_is_denied(ctx: RunContext) -> None:
+    tools = make(EchoTool(), WriterTool())
+    assert tools.is_denied("write_thing", ctx) is True
+    assert tools.is_denied("echo", ctx) is False
+
+
+def test_a_tool_the_run_has_the_permission_for_is_not_denied(tmp_path: Path) -> None:
+    allowed = RunContext(workspace=tmp_path, permissions=frozenset({Permission.READ, Permission.WRITE}))
+    assert make(WriterTool()).is_denied("write_thing", allowed) is False
+
+
+def test_an_unknown_tool_is_not_a_permission_matter(ctx: RunContext) -> None:
+    # dispatch reports it as NOT_FOUND; "denied" would mislead whoever reads the log
+    assert make(EchoTool()).is_denied("no_such_tool", ctx) is False

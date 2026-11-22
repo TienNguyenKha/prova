@@ -366,3 +366,43 @@ constructor parameter, and a fair answer needs many questions, which is the job 
 One thing the run suggests but does not prove: `read_file` returns no line numbers, so the model could only quote
 line numbers that `search_code` had given it. Numbering the lines of a snapshot is worth trying, and M6 (editing)
 will need it anyway.
+
+
+## M5: Workspace, permission profiles, trajectory log (2026-11-22)
+
+*Draft written by Claude from the session; rewrite it in your own words.*
+
+- **Built:** `harness/` (`patterns.py` path matcher, `permissions.py` profiles loaded from `permissions.yaml`,
+  `redact.py`, `trajectory.py`), a deny-list inside `resolve_inside`, and the trajectory wired into `run_agent`.
+  395 unit tests; one real run with a planted fake `.env`.
+- **Decided:**
+  - The deny-list lives in one place, `resolve_inside`, and is matched on the REAL resolved path, case-insensitive.
+    A symlink named `notes.txt` that points at `.env` is still refused.
+  - A protected path gets the same `permission_denied` message whether or not the file exists: no existence oracle.
+  - `list_dir` hides protected entries silently; `search_code` skips them and counts them as "protected" in the
+    skipped total, so the model knows its search was partial without learning which file it was.
+  - Secrets are cleaned in two places: in the tool result before the model sees it, and again before a line reaches
+    the trajectory file. Both use the same `ToolResult.model_text()`, so what is logged is what the model saw.
+  - Redaction works by shape (`sk-ant-...`, private key blocks, ...) and by value (the values of environment
+    variables whose name has the word KEY, TOKEN, SECRET, ...). The environment is passed in explicitly.
+  - The log is part of the audit: if it cannot be written, the run stops (`TrajectoryError`). `task` is logged before
+    the first model call and `tool_call` before the tool runs, so a hung tool still leaves a trace.
+  - `model_request` is a summary (turn, model, message count, tool names), not the full text: the full text would be
+    huge and full of secrets.
+- **Real run** (`m4_ask_repo.py --bait`, `review` profile, Sonnet): 2 model calls, 2,702 input and 593 output tokens,
+  status `done`. `read_file(".env")` returned `permission_denied` and the model reported that it did not try to get
+  around it. `search_code("FAKE")` skipped `.env` and the model saw `[REDACTED]` where the fake key was in
+  `src/notes.txt`. The trajectory has 10 events (`seq` 0 to 9) and `grep` finds neither `FAKE-KEY` nor `sk-ant` in it.
+- **Learned:**
+  - I expected `not_found` for the denied file and was wrong: `permission_denied` with the same text for an existing
+    and a missing file is the right answer, because it is the same for both.
+  - The model said that `.env` "may have been one of" the skipped files. A stated count is enough to make the
+    model careful; it did not need the name.
+  - The trajectory is checked with `jq`, not with eyes: `jq -c '{seq, type, tool, decision, error_code}'` gives the
+    whole timeline in 10 lines.
+- **Open:** redaction by shape and by value does not catch a secret that was transformed (base64, split in two
+  lines). The real defence is that protected files never reach the model; redaction is the second layer.
+
+### Answers to the milestone questions
+
+*(Fill these in from the questions in `plans/act-2-harness.md`, in your own words.)*

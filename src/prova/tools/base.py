@@ -1,7 +1,7 @@
 """What a tool is, what it hands back to the agent loop, and how the model sees that result."""
 
-from dataclasses import dataclass
-from enum import StrEnum
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, Self
 
@@ -9,15 +9,8 @@ from anthropic.types import ToolResultBlockParam
 from pydantic import BaseModel
 
 from prova.errors import ErrorCode
-
-
-class Permission(StrEnum):
-    """What a tool is allowed to do. The agent mode decides which of these the model may use."""
-
-    READ = "read"
-    WRITE = "write"
-    EXEC = "exec"
-    NETWORK = "network"
+from prova.harness.patterns import PathMatcher
+from prova.harness.permissions import DEFAULT_DENY_PATHS, Permission, Profile
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +21,18 @@ class RunContext:
     strict: bool = False  # tests set this so a bug inside a tool is raised, not reported to the model
     # What this run may do. Enforced when a tool is called, not only when tools are listed for the model.
     permissions: frozenset[Permission] = frozenset({Permission.READ})
+    # Paths no tool may read, search or list, even though they are inside the workspace (secrets).
+    deny: PathMatcher = field(default_factory=lambda: PathMatcher(DEFAULT_DENY_PATHS))
+
+    @classmethod
+    def from_profile(cls, profile: Profile, workspace: Path, *, strict: bool = False) -> Self:
+        """A context for a run in `workspace` under `profile`: its permissions and its deny-list."""
+        return cls(
+            workspace=workspace,
+            strict=strict,
+            permissions=profile.allow,
+            deny=PathMatcher(profile.denied_paths),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,17 +57,25 @@ class ToolResult:
     def error(cls, code: ErrorCode, message: str) -> Self:
         return cls(success=False, message=message, error_code=code)
 
-    def to_tool_result_block(self, tool_use_id: str) -> ToolResultBlockParam:
-        """The `tool_result` block for the API: the message and the snapshot, never `data`."""
+    def model_text(self) -> str:
+        """Exactly the text the model is shown: the message and the snapshot, never `data`."""
         if not self.success:
-            return {
-                "type": "tool_result",
-                "tool_use_id": tool_use_id,
-                "content": f"{self.error_code}: {self.message}",
-                "is_error": True,
-            }
-        content = self.message if self.snapshot is None else f"{self.message}\n\n{self.snapshot}"
-        return {"type": "tool_result", "tool_use_id": tool_use_id, "content": content}
+            return f"{self.error_code}: {self.message}"
+        return self.message if self.snapshot is None else f"{self.message}\n\n{self.snapshot}"
+
+    def to_tool_result_block(
+        self, tool_use_id: str, *, redact: Callable[[str], str] | None = None
+    ) -> ToolResultBlockParam:
+        """The `tool_result` block for the API. `redact` cleans secrets out of the text first."""
+        text = self.model_text()
+        block: ToolResultBlockParam = {
+            "type": "tool_result",
+            "tool_use_id": tool_use_id,
+            "content": redact(text) if redact is not None else text,
+        }
+        if not self.success:
+            block["is_error"] = True
+        return block
 
 
 class Tool(Protocol):
