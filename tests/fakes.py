@@ -6,20 +6,33 @@ from dataclasses import dataclass, field
 from anthropic.types import Message, MessageParam
 
 
-def text_message(text: str, *, stop_reason: str = "end_turn") -> Message:
-    """Build a canned assistant Message, the way the real API would return it."""
+def _message(content: list[dict[str, object]], stop_reason: str) -> Message:
     return Message.model_validate(
         {
             "id": "msg_fake",
             "type": "message",
             "role": "assistant",
             "model": "fake-model",
-            "content": [{"type": "text", "text": text}],
+            "content": content,
             "stop_reason": stop_reason,
             "stop_sequence": None,
             "usage": {"input_tokens": 1, "output_tokens": 1},
         }
     )
+
+
+def text_message(text: str, *, stop_reason: str = "end_turn") -> Message:
+    """Build a canned assistant Message, the way the real API would return it."""
+    return _message([{"type": "text", "text": text}], stop_reason)
+
+
+def tool_use_message(*calls: tuple[str, str, dict[str, object]], text: str | None = None) -> Message:
+    """Build a canned assistant Message that calls tools. Each call is (tool_use_id, name, input)."""
+    content: list[dict[str, object]] = []
+    if text is not None:
+        content.append({"type": "text", "text": text})
+    content += [{"type": "tool_use", "id": i, "name": n, "input": inp} for i, n, inp in calls]
+    return _message(content, "tool_use")
 
 
 @dataclass(frozen=True, slots=True)

@@ -14,7 +14,8 @@ class MessagesAPI(Protocol):
 
     def create(self, *, model: str, max_tokens: int, messages: Sequence[MessageParam]) -> Message: ...
 
-    # TODO(M1): add stream(); TODO(M2): add system/tools params; TODO(M23): add count_tokens()
+    # TODO(M4): add stream() and system/tools params once the agent loop lives in src/.
+    # TODO(M23): add count_tokens().
 
 
 class LLMClient(Protocol):

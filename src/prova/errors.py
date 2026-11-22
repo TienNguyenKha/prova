@@ -9,7 +9,8 @@ class ErrorCode(StrEnum):
     NOT_FOUND = "not_found"
     INVALID_ARGS = "invalid_args"
     INTERNAL = "internal"
-    # TODO(M4): add more codes when the real tools are written (timeout, permission denied, ...)
+    PERMISSION_DENIED = "permission_denied"
+    # TODO(M4): add more codes when the real tools are written (timeout, ...)
 
 
 class ProvaError(Exception):

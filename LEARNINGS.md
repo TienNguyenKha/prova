@@ -156,3 +156,72 @@ here is a display feature, not a speed feature.
 The API is stateless, so every turn resends the whole history. Input tokens grow linearly with the turn number
 (~390 per turn here) and the total bill grows quadratically. This is the motivation for compaction (M17) and prompt
 caching (M23).
+
+## M2: First hand-written tool (2026-11-22)
+
+- **Built:** `prova/llm/tool_messages.py` (`build_tool_results`: tool_use blocks in, one user message of
+  tool_results out), `prova/tools/fs.py` (`read_file` confined to a root, `FS_TOOLS`, a tiny dispatcher),
+  `ErrorCode.PERMISSION_DENIED`, 25 unit tests (test first), and three hand-run scripts: `m2_tool_loop.py`,
+  `m2_break_rules.py`, `m2_stream_tool.py`, with sample files in `experiments/act1/sandbox/`.
+- **Broke / surprised me:**
+  - The model called **both tools in one turn** (parallel `tool_use`), in every run, not one after the other.
+  - The first turn cost 421 input tokens for a one-line task (about 20-40 without tools). The tool definitions
+    seem to cost ~380 tokens, and, like the history, they are billed on every call. Inferred from the size of
+    the gap; I did not measure it in isolation.
+  - The plan expected splitting tool_results across messages to be rejected. **The API accepted it**, and the
+    model answered correctly (see the table).
+  - Same input, different wording on each run (no `temperature` set), e.g. "No, they don't match" vs "No, they're
+    different".
+  - With `--max-iterations 1` the tools had run, but the conversation ended with no final answer: the cost was paid,
+    the result was not collected.
+- **Learned:** the API pairs every `tool_use` with exactly one `tool_result` by id, in two *adjacent* messages.
+  Our own code is what keeps the pairing right: `build_tool_results` is a pure function with tests, so the rule is
+  checked without calling the API.
+
+### Rules broken on purpose (real API responses)
+
+| # | What I broke | Result | What the API said (short) |
+|---|---|---|---|
+| 0 | nothing (control) | accepted | |
+| 1 | wrong `tool_use_id` | 400 | `tool_result` has no matching `tool_use` in the previous message |
+| 2 | `tool_use` removed from the assistant turn | 400 | same message as #1, with the real id |
+| 3 | `tool_result` with nothing before it | 400 | same message, position `messages.0` |
+| 4 | two `tool_result`s in two user messages | **accepted** | model answered correctly |
+| 5 | one of two `tool_use` left unanswered | 400 | `tool_use` ids found without `tool_result` immediately after |
+| 6a/6b | error text with / without `is_error` | accepted | replies were almost identical |
+
+Three different violations (#1, #2, #3) give the same message: for the API they are all "this id has no `tool_use`
+in the previous message". The position (`messages.2.content.0`) tells which block is wrong. #5 is the opposite
+direction of the same rule.
+
+Why does #4 pass? `m2_same_role.py` sent the same two sentences as one user message (A) and as two consecutive
+user messages (B), without tools: both were accepted, answered `Linh`, and cost the same 28 input tokens. That
+supports the guess that the API merges consecutive messages of the same role before processing them. One run on one
+short pair, and I do not know how they are joined. It also means the M1 trap "two consecutive same-role messages make
+the API fail" no longer holds for this API. Our code still sends one message and keeps roles alternating, so it does
+not depend on this behaviour.
+
+### Tool errors and `is_error`
+
+A missing file comes back as `tool_result` with `is_error=True` and `not_found: no such file: missing.txt`. The model
+said plainly that the file does not exist and did not invent content. With and without the flag, the replies were
+almost identical (one sample each), because the text already says what happened. Not tested: ambiguous error text
+(empty string, just `0`), where the flag may matter more.
+
+### Streaming a request that uses a tool
+
+A `tool_use` block starts with its `name` and `id` but an empty `input`; the arguments then arrive as pieces of a JSON
+string (`input_json_delta`): `''`, `'{"path"'`, `': "note'`, `'s.txt"}'`. The pieces are cut mid-word and are not valid
+JSON alone. The SDK's `snapshot` stays `{}` until the last piece. So a tool must only run after `content_block_stop`.
+
+### Answers to the milestone questions
+
+**Why does the API insist on keeping the `tool_use` block in the history?**
+Observed: when I removed it (#2), the request was rejected, because validation matches each `tool_result` to a
+`tool_use` by id in the previous message. My reasoning, not tested: the API is stateless, so the history we resend is
+the only record of what the model asked for; a result only means something as the answer to that specific call.
+
+**What does the model do differently with `is_error: true` than with a plain "Error: ..." string?**
+In this experiment, nothing visible: both replies said the file does not exist and offered to try another path (one
+sample each). I cannot say what the flag changes inside the model. I keep setting it for every `ToolError`, because it
+is an explicit machine-readable signal and costs nothing, and I write the text so that it explains the failure by itself.

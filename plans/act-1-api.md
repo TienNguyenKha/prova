@@ -235,7 +235,8 @@ class UsageLog:
 ### ⚠️ Bẫy thường gặp
 
 - Quên append lượt assistant: model "quên" câu trả lời trước.
-- Hai lượt cùng vai liên tiếp làm API báo lỗi.
+- Hai lượt cùng vai liên tiếp: bản API ta thử ở M2 **chấp nhận** và gộp lại (cùng `input_tokens`, xem `LEARNINGS.md`
+  mục M2, một lần chạy); vẫn nên giữ vai xen kẽ trong code để không phụ thuộc hành vi này.
 
 ### 🔬 Sâu hơn sách
 
