@@ -1,63 +1,135 @@
-"""Filesystem tools confined to a root directory. M2 version: one tool, a tiny dispatcher, no registry."""
+"""Filesystem tools confined to the workspace."""
 
-from collections.abc import Mapping
+import codecs
 from pathlib import Path
 
-from anthropic.types import ToolParam
+from pydantic import BaseModel, ConfigDict, Field
 
 from prova.errors import ErrorCode, ToolError
-from prova.llm.tool_messages import ToolRunner
+from prova.tools.base import Permission, RunContext, ToolResult
+from prova.tools.paths import resolve_inside
+from prova.tools.text import count_noun
 
-DEFAULT_MAX_BYTES = 100_000  # a huge file would inflate input_tokens on every later turn
-
-READ_FILE_TOOL: ToolParam = {
-    "name": "read_file",
-    "description": "Read a UTF-8 text file inside the workspace. Returns its content.",
-    "input_schema": {
-        "type": "object",
-        "properties": {"path": {"type": "string", "description": "Path relative to workspace root"}},
-        "required": ["path"],
-    },
-}
-FS_TOOLS: list[ToolParam] = [READ_FILE_TOOL]
+DEFAULT_SNAPSHOT_BYTES = 20_000  # how much of a file the model gets to see; the cut is always stated
+DEFAULT_LIST_ENTRIES = 200  # how many directory entries the model gets to see; the cut is always stated
 
 
-def read_file(root: Path, path: str, *, max_bytes: int = DEFAULT_MAX_BYTES) -> str:
-    """Read a UTF-8 text file that lives inside `root`.
+class ReadFileArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-    Failures the model can fix (outside the root, missing, directory, too large, not UTF-8) are ToolErrors.
-    OS-level read errors such as a permission error are not mapped yet and propagate (see the TODO below).
-    """
-    resolved_root = root.resolve()
-    # resolve() follows `..` and symlinks, so the check below sees where the path REALLY points.
-    # An absolute `path` replaces the root in the join, then fails the check unless it is inside the root.
-    target = (resolved_root / path).resolve()
-    # is_relative_to compares path components; a string prefix check would let `work_evil` pass for `work`.
-    if not target.is_relative_to(resolved_root):
-        raise ToolError(ErrorCode.PERMISSION_DENIED, f"path escapes the workspace: {path}")
-    if not target.exists():
-        raise ToolError(ErrorCode.NOT_FOUND, f"no such file: {path}")
-    if target.is_dir():
-        raise ToolError(ErrorCode.INVALID_ARGS, f"{path} is a directory, not a file")
-    size = target.stat().st_size
-    if size > max_bytes:
-        raise ToolError(ErrorCode.INVALID_ARGS, f"file too large: {size} bytes (limit {max_bytes})")
-    try:
-        return target.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        raise ToolError(ErrorCode.INVALID_ARGS, f"{path} is not a UTF-8 text file") from None
-    # TODO(M4): an unreadable file (OS permission error) is not mapped to a ToolError yet.
+    path: str = Field(description="Path of the file, relative to the workspace root")
 
 
-def make_fs_runner(root: Path) -> ToolRunner:
-    """Build the tool runner for the filesystem tools, bound to `root`."""
+class ReadFileTool:
+    name = "read_file"
+    description = (
+        "Read a UTF-8 text file inside the workspace. A long file is cut: the result says how much was shown."
+    )
+    args_model = ReadFileArgs
+    permission = Permission.READ
 
-    def run(name: str, tool_input: Mapping[str, object]) -> str:
-        if name == "read_file":
-            path = tool_input.get("path")
-            if not isinstance(path, str):
-                raise ToolError(ErrorCode.INVALID_ARGS, "read_file needs a string argument 'path'")
-            return read_file(root, path)
-        raise ToolError(ErrorCode.NOT_FOUND, f"unknown tool {name!r}")
+    def __init__(self, *, max_bytes: int = DEFAULT_SNAPSHOT_BYTES) -> None:
+        self._max_bytes = max_bytes
 
-    return run
+    def run(self, args: ReadFileArgs, ctx: RunContext) -> ToolResult:
+        target = resolve_inside(ctx.workspace, args.path)
+        if not target.exists():
+            raise ToolError(ErrorCode.NOT_FOUND, f"no such file: {args.path}")
+        if target.is_dir():
+            raise ToolError(ErrorCode.INVALID_ARGS, f"{args.path} is a directory, not a file")
+        if not target.is_file():  # a named pipe or device: opening it could block forever
+            raise ToolError(ErrorCode.INVALID_ARGS, f"{args.path} is not a regular file")
+
+        try:
+            size = target.stat().st_size
+            with target.open("rb") as f:
+                raw = f.read(self._max_bytes)  # never read more than we may show
+        except PermissionError:
+            message = f"cannot read {args.path}: permission denied"
+            raise ToolError(ErrorCode.PERMISSION_DENIED, message) from None
+
+        truncated = size > self._max_bytes
+        text = self._decode(raw, args.path, final=not truncated)
+        data = {"path": args.path, "bytes": size, "truncated": truncated}
+
+        if truncated:
+            shown = len(text.encode("utf-8"))
+            note = f"cut: showing the first {shown} of {size} bytes"
+            snapshot = f"{text}\n[{note}; the rest is not shown]"
+            return ToolResult.ok(f"read {args.path}: {note}", data=data, snapshot=snapshot)
+        if not text:
+            return ToolResult.ok(f"read {args.path} (empty file)", data=data)
+        lines = text.count("\n") + (0 if text.endswith("\n") else 1)
+        counted = f"{count_noun(lines, 'line', 'lines')}, {count_noun(size, 'byte', 'bytes')}"
+        return ToolResult.ok(f"read {args.path} ({counted})", data=data, snapshot=text)
+
+    @staticmethod
+    def _decode(raw: bytes, path: str, *, final: bool) -> str:
+        # An incremental decoder keeps a character that the cut split in two as pending instead of failing,
+        # but still rejects bytes that are really not UTF-8. `final` is true when we hold the whole file.
+        decoder = codecs.getincrementaldecoder("utf-8")()
+        try:
+            text = decoder.decode(raw, final=final)
+        except UnicodeDecodeError:
+            raise ToolError(ErrorCode.INVALID_ARGS, f"{path} is not a UTF-8 text file") from None
+        if "\x00" in text:
+            raise ToolError(ErrorCode.INVALID_ARGS, f"{path} looks like a binary file (has NUL bytes)")
+        return text
+
+
+class ListDirArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(
+        default=".",
+        description="Directory to list, relative to the workspace root (default: the root itself)",
+    )
+
+
+class ListDirTool:
+    name = "list_dir"
+    description = (
+        "List the entries of a directory inside the workspace, sorted by name. "
+        "A long listing is cut: the result says how many entries were shown."
+    )
+    args_model = ListDirArgs
+    permission = Permission.READ
+
+    def __init__(self, *, max_entries: int = DEFAULT_LIST_ENTRIES) -> None:
+        self._max_entries = max_entries
+
+    def run(self, args: ListDirArgs, ctx: RunContext) -> ToolResult:
+        target = resolve_inside(ctx.workspace, args.path)
+        if not target.exists():
+            raise ToolError(ErrorCode.NOT_FOUND, f"no such directory: {args.path}")
+        if not target.is_dir():
+            message = f"{args.path} is a file, not a directory; use read_file to read it"
+            raise ToolError(ErrorCode.INVALID_ARGS, message)
+
+        try:
+            entries = sorted(target.iterdir(), key=lambda entry: entry.name)
+        except PermissionError:
+            message = f"cannot list {args.path}: permission denied"
+            raise ToolError(ErrorCode.PERMISSION_DENIED, message) from None
+
+        total = len(entries)
+        shown = entries[: self._max_entries]
+        truncated = total > len(shown)
+        data = {"path": args.path, "entries": total, "truncated": truncated}
+
+        if total == 0:
+            return ToolResult.ok(f"{args.path} is an empty directory", data=data)
+        snapshot = "\n".join(self._describe(entry) for entry in shown)
+        if truncated:
+            note = f"cut: showing the first {len(shown)} of {total} entries"
+            return ToolResult.ok(f"listed {args.path}: {note}", data=data, snapshot=f"{snapshot}\n[{note}]")
+        message = f"listed {args.path} ({count_noun(total, 'entry', 'entries')})"
+        return ToolResult.ok(message, data=data, snapshot=snapshot)
+
+    @staticmethod
+    def _describe(entry: Path) -> str:
+        if entry.is_symlink():  # shown, never followed: its target could be outside the workspace
+            return f"{entry.name} (symlink)"
+        if entry.is_dir():
+            return f"{entry.name}/"
+        return f"{entry.name} ({count_noun(entry.stat().st_size, 'byte', 'bytes')})"

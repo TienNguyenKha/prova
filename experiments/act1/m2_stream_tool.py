@@ -8,8 +8,9 @@ from typing import Any
 
 import anthropic
 
+from prova.app import build_app
 from prova.config import load_settings
-from prova.tools.fs import FS_TOOLS
+from prova.tools.base import Permission
 
 TASK = "Compare the version in notes.txt with the app_version in config.txt. Are they the same?"
 
@@ -41,10 +42,13 @@ def main() -> None:
         api_key=settings.anthropic_api_key.get_secret_value(),
         timeout=settings.request_timeout_s,
     )
+    # Only read_file is offered, as in the original experiment, so the model reads both files in one turn.
+    app = build_app(settings, llm=client)
+    tools = [t for t in app.tools.to_api_tools({Permission.READ}) if t["name"] == "read_file"]
     with client.messages.stream(
         model=settings.model,
         max_tokens=1024,
-        tools=FS_TOOLS,
+        tools=tools,
         messages=[{"role": "user", "content": TASK}],
     ) as stream:
         for event in stream:

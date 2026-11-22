@@ -13,11 +13,15 @@ Update this file at the end of every working session.
 - **M1** Multi-turn chat and streaming: `prova/llm/usage.py` (`UsageRecord`, `UsageLog`) with unit tests,
   `m1_chat.py`, `m1_plot.py`, `m1_stream.py`. Chart and TTFT table are in `LEARNINGS.md`.
   Step 6 (stream with a tool) moved to M2.
-- **M2** First hand-written tool: `prova/llm/tool_messages.py`, `prova/tools/fs.py` (confined `read_file`),
-  25 unit tests, `m2_tool_loop.py`, `m2_break_rules.py`, `m2_stream_tool.py`. Rules table and answers in `LEARNINGS.md`.
+- **M2** First hand-written tool, 25 unit tests, `m2_break_rules.py`, `m2_stream_tool.py`. Rules table and answers
+  in `LEARNINGS.md`. (The M2 prototypes of the loop and the tool runner were replaced in M4; `m2_tool_loop.py` deleted.)
 - **M3** Structured output: `prova/structured.py` (`extract`, `check_stop_reason`, `parse_structured`,
   `BugClassification`), `StructuredError` + `StructuredErrorKind`, `prova/stats.py` (`mean_sem`), 30 unit tests,
   20 snippets in `experiments/act1/m3_cases/`, and four hand-run scripts. Both comparison tables are in `LEARNINGS.md`.
+- **M4** Read-only ReAct loop: `agent/loop.py` (`run_agent`, all `stop_reason` cases), `tools/` (`Tool`, `ToolResult`,
+  `ToolRegistry`, `read_file`, `list_dir`, `search_code`), `AnthropicClient` (SDK errors become `LLMError`),
+  permissions enforced at dispatch, `build_app` registers and freezes the tools. 237 unit tests, and one real run
+  (`experiments/act2/m4_ask_repo.py`). Trace, token table and answer in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -31,8 +35,13 @@ Update this file at the end of every working session.
 ### P0 (next up)
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
-- M4: read-only ReAct loop (Act II). Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up)
-  belongs to the caller, so decide it when the first caller exists.
+- M5: workspace, permission profiles, trajectory log. Must include a deny-list for secret files (`.env`, keys) and
+  redaction of secrets in logs: with the repo root as workspace, `read_file(".env")` is valid today (found in M4).
+- After M5 (optional part of M4): rewrite the M4 question with the SDK's `tool_runner` and compare line counts and
+  what our loop adds (`stop_reason` table, permissions, classified errors, stated limits).
+- M6: number the lines of a `read_file` snapshot (in M4 the model could only quote line numbers that `search_code` gave it).
+- Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up) belongs to the caller, so decide it
+  when the first real caller (the CLI or a worker) exists.
 
 ### P1
 
@@ -51,11 +60,14 @@ Update this file at the end of every working session.
 | 2026-11-21 | Positioned as a security coding agent; defensive scope only | Differentiator is evidence: every finding ships with a runnable PoC. |
 | 2026-11-22 | `uv` for the environment; `src/` layout | Pinned, hashed lockfile; tests import the installed package, not a stray local file. |
 | 2026-11-22 | Code, comments and error messages in English | The repo is a portfolio piece; explanations in chat stay Vietnamese. |
-| 2026-11-22 | M0a cannot test "registry frozen after build_app" | `App` has no registry until M4; test is a `TODO(M4)` in `tests/unit/test_app.py`. |
-| 2026-11-22 | Decided, to implement with the first caller (M4): wrap every `anthropic.APIError` into `LLMError` (with `from e`) in `llm/`; no subclasses yet; no own retry | The SDK already retries connection errors, 408/409/429/5xx (2 retries); a second retry layer would multiply attempts. Split subclasses only when a caller needs different handling (M23). |
+| 2026-11-22 | M0a cannot test "registry frozen after build_app" | `App` had no registry until M4. Resolved in M4: `ToolRegistry` refuses a registry that is not frozen, so the rule holds by construction. |
+| 2026-11-22 | Implemented in M4 (`AnthropicClient`): wrap every `anthropic.APIError` into `LLMError` (with `from e`) in `llm/`; no subclasses yet; no own retry | The SDK already retries connection errors, 408/409/429/5xx (2 retries); a second retry layer would multiply attempts. Split subclasses only when a caller needs different handling (M23). |
 | 2026-11-22 | `UsageRecord` is a frozen dataclass; experiment CSVs carry no `schema_version` | Frozen follows the conventions for internal trusted values. The CSV is a throwaway experiment log; the trajectory log (M5) is a durable format and will carry `schema_version`. |
 | 2026-11-22 | `LLMClient` stays minimal (`create` only); experiments call the SDK directly | The Protocol grows when Prova's own code needs it (`stream`, `system`/`tools` when the agent loop moves into `src/` at M4; `count_tokens` at M23). |
-| 2026-11-22 | `read_file` confines paths with `resolve()` + `is_relative_to`; `build_tool_results` always sends ONE user message | Resolving first defeats `..`, symlinks and sibling-prefix tricks. The API accepted split results in M2, but one message is the documented shape and keeps the pairing rule easy to reason about. Open: OS permission errors (TODO M4) and the check-then-read gap (sandbox, M7). |
+| 2026-11-22 | `resolve_inside` confines paths with `resolve()` + `is_relative_to`; the loop answers all tool calls of a turn in ONE user message | Resolving first defeats `..`, symlinks and sibling-prefix tricks. The API accepted split results in M2, but one message is the documented shape and keeps the pairing rule easy to reason about. Open: OS permission errors (TODO M4) and the check-then-read gap (sandbox, M7). |
 | 2026-11-22 | `extract()` calls `messages.create(output_config=...)` and validates itself, not `messages.parse()` | `parse()` validates inside the call, so a truncated or refused reply raises a validation error and `stop_reason` is never visible. Structured outputs (method C) is the default; forced `tool_choice` is not used because the main model rejects it (HTTP 400). |
 | 2026-11-22 | `StructuredError` carries a `StructuredErrorKind`; messages name the field and rule but never echo the model's output | Callers branch on the enum, not on text. Untrusted model output must not leak into logs or error messages. |
 | 2026-11-22 | "3 seeds" means 3 repetitions; `ruff` skips `experiments/act1/m3_cases/` | The API has no `seed` and sampling parameters were removed. The snippets are deliberately buggy sample data, never imported. |
+| 2026-11-22 | Permissions are enforced in `ToolRegistry.dispatch` (from `RunContext.permissions`), not only in the tool list shown to the model | The model can ask for a tool it was never offered (a hallucination or an injected instruction). The check runs before the arguments are validated, so a denied tool reveals nothing about what it expects. |
+| 2026-11-22 | `search_code` is pure Python and matches literal text, not regular expressions | `ripgrep` is not installed here, and every extra binary in the sandbox image is one more thing to pin (M7). A model-supplied regex can hang `re`, which has no timeout. Regex comes back together with a real timeout. |
+| 2026-11-22 | Any `stop_reason` other than `end_turn` and `tool_use` ends the run, and no tool in such a reply is run; no retry of our own | A cut or unrecognised reply is not a trustworthy request (its arguments may be incomplete). The SDK already retries transient errors, so an `LLMError` means it has given up. |

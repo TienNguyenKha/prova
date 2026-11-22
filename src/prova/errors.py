@@ -10,7 +10,9 @@ class ErrorCode(StrEnum):
     INVALID_ARGS = "invalid_args"
     INTERNAL = "internal"
     PERMISSION_DENIED = "permission_denied"
-    # TODO(M4): add more codes when the real tools are written (timeout, ...)
+    TIMEOUT = "timeout"
+    TRANSIENT = "transient"  # a failure that may go away by itself (the caller decides whether to try again)
+    SAFETY = "safety"  # refused by a safety rule, not by a missing permission
 
 
 class ProvaError(Exception):
@@ -54,7 +56,11 @@ class SandboxError(ProvaError):
 
 
 class LLMError(ProvaError):
-    """Error from the model-calling layer. Use `raise LLMError(...) from e` to keep the SDK exception."""
+    """A call to the model failed. Always raised with `from e`, so the SDK exception stays as `__cause__`."""
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code  # the HTTP status, or None for a connection error or a timeout
 
 
 class StructuredErrorKind(StrEnum):

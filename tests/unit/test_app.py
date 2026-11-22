@@ -5,11 +5,12 @@ import sys
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 
-import anthropic
 import pytest
 
 from prova.app import build_app
 from prova.config import Settings
+from prova.llm.client import AnthropicClient
+from prova.tools.base import Permission, RunContext
 from tests.fakes import FakeLLM, text_message
 
 
@@ -39,7 +40,7 @@ def test_build_app_uses_the_injected_llm_and_makes_no_call(settings: Settings) -
 def test_build_app_without_llm_builds_the_real_client_without_network(settings: Settings) -> None:
     # The network is blocked by conftest: constructing the SDK client must not connect.
     app = build_app(settings)
-    assert isinstance(app.llm, anthropic.Anthropic)
+    assert isinstance(app.llm, AnthropicClient)
 
 
 def test_app_is_frozen(settings: Settings) -> None:
@@ -48,4 +49,39 @@ def test_app_is_frozen(settings: Settings) -> None:
         app.settings = settings  # pyright: ignore[reportAttributeAccessIssue]
 
 
-# TODO(M4): when App gains a ToolRegistry, assert that build_app freezes it.
+# --- The tools ----------------------------------------------------------------
+
+
+def test_build_app_registers_the_read_only_tools_in_name_order(settings: Settings) -> None:
+    app = build_app(settings, llm=FakeLLM())
+    assert [t["name"] for t in app.tools.to_api_tools({Permission.READ})] == [
+        "list_dir",
+        "read_file",
+        "search_code",
+    ]
+
+
+def test_there_is_no_tool_that_can_write_yet(settings: Settings) -> None:
+    app = build_app(settings, llm=FakeLLM())
+    assert app.tools.to_api_tools({Permission.WRITE, Permission.EXEC, Permission.NETWORK}) == []
+
+
+def test_the_tool_list_is_identical_every_time(settings: Settings) -> None:
+    # A stable list keeps the prompt cache valid and benchmark runs reproducible.
+    first = build_app(settings, llm=FakeLLM()).tools.to_api_tools({Permission.READ})
+    second = build_app(settings, llm=FakeLLM()).tools.to_api_tools({Permission.READ})
+    assert first == second
+
+
+def test_every_app_gets_its_own_tools_and_nothing_is_shared_globally(settings: Settings) -> None:
+    assert build_app(settings, llm=FakeLLM()).tools is not build_app(settings, llm=FakeLLM()).tools
+
+
+def test_the_registered_tools_work_through_the_app(settings: Settings, tmp_path: Path) -> None:
+    (tmp_path / "notes.txt").write_text("hello", encoding="utf-8")
+    app = build_app(settings, llm=FakeLLM())
+
+    result = app.tools.dispatch("list_dir", {}, RunContext(workspace=tmp_path))
+
+    assert result.success
+    assert result.snapshot == "notes.txt (5 bytes)"

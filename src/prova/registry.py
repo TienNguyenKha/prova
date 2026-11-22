@@ -45,6 +45,10 @@ class Registry[T: Named]:
     def freeze(self) -> None:
         self._frozen = True
 
+    @property
+    def frozen(self) -> bool:
+        return self._frozen
+
     def get(self, name: str) -> T:
         """For names that come from our own code: a missing name is a programming error."""
         try:

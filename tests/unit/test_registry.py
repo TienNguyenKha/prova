@@ -117,3 +117,10 @@ def test_kind_appears_in_messages_for_other_registries() -> None:
 )
 def test_all_registry_errors_share_one_base(error: type[Exception]) -> None:
     assert issubclass(error, RegistryError)
+
+
+def test_a_registry_knows_whether_it_is_frozen() -> None:
+    registry = make_registry("a")
+    assert registry.frozen is False
+    registry.freeze()
+    assert registry.frozen is True

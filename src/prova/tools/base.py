@@ -1,0 +1,83 @@
+"""What a tool is, what it hands back to the agent loop, and how the model sees that result."""
+
+from dataclasses import dataclass
+from enum import StrEnum
+from pathlib import Path
+from typing import Any, Protocol, Self
+
+from anthropic.types import ToolResultBlockParam
+from pydantic import BaseModel
+
+from prova.errors import ErrorCode
+
+
+class Permission(StrEnum):
+    """What a tool is allowed to do. The agent mode decides which of these the model may use."""
+
+    READ = "read"
+    WRITE = "write"
+    EXEC = "exec"
+    NETWORK = "network"
+
+
+@dataclass(frozen=True, slots=True)
+class RunContext:
+    """What a tool needs to know about the run it is part of."""
+
+    workspace: Path  # the one directory file tools may touch
+    strict: bool = False  # tests set this so a bug inside a tool is raised, not reported to the model
+    # What this run may do. Enforced when a tool is called, not only when tools are listed for the model.
+    permissions: frozenset[Permission] = frozenset({Permission.READ})
+
+
+@dataclass(frozen=True, slots=True)
+class ToolResult:
+    success: bool
+    message: str  # one short sentence for the model: what happened
+    data: Any = None  # the full payload for code and logs; never sent to the model
+    snapshot: str | None = None  # what the model sees after the message; if it is cut, it must say so
+    error_code: ErrorCode | None = None
+
+    def __post_init__(self) -> None:
+        if self.success and self.error_code is not None:
+            raise ValueError("a successful ToolResult cannot carry an error_code")
+        if not self.success and self.error_code is None:
+            raise ValueError("a failed ToolResult needs an error_code")
+
+    @classmethod
+    def ok(cls, message: str, *, data: Any = None, snapshot: str | None = None) -> Self:
+        return cls(success=True, message=message, data=data, snapshot=snapshot)
+
+    @classmethod
+    def error(cls, code: ErrorCode, message: str) -> Self:
+        return cls(success=False, message=message, error_code=code)
+
+    def to_tool_result_block(self, tool_use_id: str) -> ToolResultBlockParam:
+        """The `tool_result` block for the API: the message and the snapshot, never `data`."""
+        if not self.success:
+            return {
+                "type": "tool_result",
+                "tool_use_id": tool_use_id,
+                "content": f"{self.error_code}: {self.message}",
+                "is_error": True,
+            }
+        content = self.message if self.snapshot is None else f"{self.message}\n\n{self.snapshot}"
+        return {"type": "tool_result", "tool_use_id": tool_use_id, "content": content}
+
+
+class Tool(Protocol):
+    """Anything with this shape is a tool; there is no base class to inherit from."""
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+    @property
+    def args_model(self) -> type[BaseModel]: ...  # the JSON schema sent to the API is generated from this
+
+    @property
+    def permission(self) -> Permission: ...
+
+    def run(self, args: Any, ctx: RunContext) -> ToolResult: ...  # args is an instance of `args_model`

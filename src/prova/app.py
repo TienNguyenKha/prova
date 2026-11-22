@@ -4,19 +4,35 @@ from dataclasses import dataclass
 
 from prova.config import Settings
 from prova.llm.client import LLMClient, make_client
+from prova.registry import Registry
+from prova.tools.base import Tool
+from prova.tools.fs import ListDirTool, ReadFileTool
+from prova.tools.registry import ToolRegistry
+from prova.tools.search import SearchCodeTool
 
 
 @dataclass(frozen=True, slots=True)
 class App:
     settings: Settings
     llm: LLMClient
-    # TODO(M4): tools (ToolRegistry). Later: sandbox (M7), hooks (M8), mcp (M8b), kb (S1), scanners (S3).
+    tools: ToolRegistry
+    # TODO(M7): sandbox. TODO(M8): hooks. TODO(M8b): mcp. TODO(S1): kb. TODO(S3): scanners.
 
 
 def build_app(settings: Settings, *, llm: LLMClient | None = None) -> App:
-    """Use the given `llm` (tests pass a fake) or build the real client, and wire the App."""
-    # TODO(M4): register tools here, then freeze the registry before returning.
+    """Use the given `llm` (tests pass a fake) or build the real client, register the tools, wire the App."""
     return App(
         settings=settings,
         llm=llm if llm is not None else make_client(settings),
+        tools=_build_tools(),
     )
+
+
+def _build_tools() -> ToolRegistry:
+    """Register every tool explicitly (never at import time), then freeze: nothing can be added afterwards."""
+    all_tools: list[Tool] = [ListDirTool(), ReadFileTool(), SearchCodeTool()]
+    registry = Registry[Tool]("tool")
+    for tool in all_tools:
+        registry.register(tool)
+    registry.freeze()
+    return ToolRegistry(registry)

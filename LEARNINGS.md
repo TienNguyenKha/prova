@@ -163,6 +163,8 @@ caching (M23).
   tool_results out), `prova/tools/fs.py` (`read_file` confined to a root, `FS_TOOLS`, a tiny dispatcher),
   `ErrorCode.PERMISSION_DENIED`, 25 unit tests (test first), and three hand-run scripts: `m2_tool_loop.py`,
   `m2_break_rules.py`, `m2_stream_tool.py`, with sample files in `experiments/act1/sandbox/`.
+  (In M4 the hand-written pieces were replaced by `agent/loop.py` and the tool classes; `m2_tool_loop.py` was
+  deleted, the other two scripts now use the app's tools. Git history keeps the originals.)
 - **Broke / surprised me:**
   - The model called **both tools in one turn** (parallel `tool_use`), in every run, not one after the other.
   - The first turn cost 421 input tokens for a one-line task (about 20-40 without tools). The tool definitions
@@ -310,3 +312,57 @@ the documented idea that generation is constrained to the schema. I did not veri
 guarantee completeness (one reply was truncated), and the SDK's `transform_schema` turns numeric limits such as
 `ge`/`le` into plain text in the description (read from its source; not seen failing live, because no
 `out_of_range` appeared). So the `stop_reason` check and the second validation stay.
+
+## M4: A read-only ReAct loop (2026-11-22)
+
+- **Built:** `tools/base.py` (`Tool`, `ToolResult`, `Permission`, `RunContext`), `tools/registry.py`
+  (`ToolRegistry`: list tools for the API, dispatch the model's calls), three tools (`read_file`, `list_dir` in
+  `tools/fs.py`, `search_code` in `tools/search.py`), `tools/paths.py` (`resolve_inside`), `llm/client.py`
+  (`AnthropicClient`: SDK errors become `LLMError`), `llm/stop.py`, `validation.py`, and `agent/loop.py`
+  (`run_agent`). 237 unit tests, all written before the code. `build_app` registers the tools and freezes the registry.
+- **Broke / surprised me:**
+  - Designing the loop exposed a hole: `dispatch` ran any registered tool, even one the model was never shown. A
+    hallucinated or injected call to a write tool would have run. The permission check now lives in `dispatch`
+    (before the arguments are even validated), and the tool list shown to the model comes from the same
+    `RunContext.permissions`, so there is one source of truth.
+  - A workspace is not a safe place just because paths cannot leave it: with the repo root as workspace,
+    `read_file(".env")` is valid and would put the API key in the model's context and in the printed trace. The real
+    run therefore works on a temporary copy of `src/`, `tests/` and `experiments/`. A deny-list for secret files and
+    redaction in logs are P0 for M5.
+  - `ripgrep` is not installed here: in the shell, `rg` is a function of the coding tool, which Python's
+    `subprocess` cannot see. `search_code` is pure Python and matches literal text, not regular expressions: a
+    model-supplied regex can hang the process (no timeout in `re`).
+  - `Path.resolve()` raises `ValueError` on a NUL character, so a path the model sends can crash a tool. Found by
+    thinking about inputs, not by a failing test.
+  - The fake LLM stored a reference to the list the loop keeps appending to, so every recorded call looked like it
+    had received the final history. It now copies the list at call time.
+  - Two of my own mistakes, both caught by running the tests at once: `Tool` used `ToolResult` before it was
+    defined (a `NameError`), and a "did you mean" test that passed even with no suggestion.
+- **Learned:** every limit a tool applies (file size, entries, matches, line length, files scanned, skipped files)
+  has to appear in the result. In the real run the model quoted "skipped 2 files" to warn that its own answer could
+  be incomplete: that only worked because the tool said it.
+
+### Real run: "Where is `check_stop_reason` defined, and where is it used?" (Sonnet, one run)
+
+| Turn | Model call | Result sent back | Input tokens | Output tokens |
+|---|---|---|---|---|
+| 1 | `search_code("check_stop_reason")` | 14 matches in 4 files, 1,341 chars | 1,081 | 55 |
+| 2 | `read_file("src/prova/structured.py")` | the whole file, 4,098 chars (111 lines) | 1,686 | 55 |
+| 3 | final answer | | 3,390 | 583 |
+
+3 calls, 6,157 input and 693 output tokens, status `done`. A plain text search (no model) finds the same 14 lines.
+The answer accounted for all 14, with no invented line numbers. One slip in the reasoning: it said the call at
+`tests/unit/test_structured.py:86` was probably "on a line the search didn't show", although the search had shown
+it. It also named the 2 skipped files as a reason the list could be incomplete.
+
+### Answers to the milestone question
+
+**How long should a `snapshot` be: long enough for the model to understand, without bloating the context?**
+I can only say what one run shows. The model needed a 1.3k-character search result and one 4k-character file, and
+nothing was cut. Reading the 4k-character file added about 1,700 input tokens (about 2.4 characters per token for
+code), and those tokens are paid again on every later turn (the quadratic cost from M1). The default of 20,000 bytes
+per file would be roughly 8,000 tokens for a single read. That default is a guess, not a measured value: it stays a
+constructor parameter, and a fair answer needs many questions, which is the job of the benchmark in Act III.
+One thing the run suggests but does not prove: `read_file` returns no line numbers, so the model could only quote
+line numbers that `search_code` had given it. Numbering the lines of a snapshot is worth trying, and M6 (editing)
+will need it anyway.

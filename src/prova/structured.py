@@ -10,6 +10,8 @@ from prova.config import Settings
 from prova.errors import StructuredError
 from prova.errors import StructuredErrorKind as Kind
 from prova.llm.client import LLMClient
+from prova.llm.stop import describe_refusal
+from prova.validation import describe_errors
 
 __all__ = [
     "BugClassification",
@@ -60,9 +62,7 @@ def check_stop_reason(response: Message) -> None:
     if reason == "max_tokens":
         raise StructuredError(Kind.TRUNCATED, "response was truncated (max_tokens): the output is incomplete")
     if reason == "refusal":
-        details = response.stop_details
-        why = ": " + ", ".join(p for p in (details.category, details.explanation) if p) if details else ""
-        raise StructuredError(Kind.REFUSED, f"the model refused{why}")
+        raise StructuredError(Kind.REFUSED, describe_refusal(response))
     raise StructuredError(Kind.UNEXPECTED_STOP, f"unexpected stop_reason {reason!r}")
 
 
@@ -108,6 +108,4 @@ def _kind_of(error: ValidationError) -> Kind:
 
 
 def _describe(schema: type[BaseModel], error: ValidationError) -> str:
-    """Name the offending fields and the rule they broke, without echoing the model's output."""
-    problems = [f"{'.'.join(str(p) for p in e['loc']) or '<root>'}: {e['msg']}" for e in error.errors()]
-    return f"output does not match {schema.__name__}: " + "; ".join(problems)
+    return f"output does not match {schema.__name__}: " + describe_errors(error)
