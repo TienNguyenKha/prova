@@ -162,7 +162,7 @@ Agent trả lời đúng câu hỏi ở bước 6, có trace đầy đủ; mọi
 
 - `snapshot` dài bao nhiêu thì vừa: đủ cho model hiểu mà không làm phình context?
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 
@@ -233,7 +233,7 @@ ch15 `harness.py`, ch14 `tool_permission_enforcer.py`, ch21 `learn_command.py`; 
 
 Mọi test traversal và test profile đều xanh; một lần chạy M4 sinh ra trajectory đọc được bằng `jq`.
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 

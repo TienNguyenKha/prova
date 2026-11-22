@@ -370,8 +370,6 @@ will need it anyway.
 
 ## M5: Workspace, permission profiles, trajectory log (2026-11-22)
 
-*Draft written by Claude from the session; rewrite it in your own words.*
-
 - **Built:** `harness/` (`patterns.py` path matcher, `permissions.py` profiles loaded from `permissions.yaml`,
   `redact.py`, `trajectory.py`), a deny-list inside `resolve_inside`, and the trajectory wired into `run_agent`.
   395 unit tests; one real run with a planted fake `.env`.
@@ -403,6 +401,30 @@ will need it anyway.
 - **Open:** redaction by shape and by value does not catch a secret that was transformed (base64, split in two
   lines). The real defence is that protected files never reach the model; redaction is the second layer.
 
-### Answers to the milestone questions
+### Against the plan's "done when" and its deviations
 
-*(Fill these in from the questions in `plans/act-2-harness.md`, in your own words.)*
+M5 has no question list in the plan, so I checked the milestone against its own checks.
+
+- **Traversal tests:** `..`, an absolute path outside, a symlink pointing outside, a `~` (a plain name, never the
+  home directory) and a NUL character are all covered in `tests/unit/tools/test_paths.py`. The check is
+  `resolve()` + `is_relative_to`, never `startswith`.
+- **Profile test:** a tool whose permission the run lacks is refused even when the model asks for it, and the
+  permission is checked before the arguments (`test_tool_registry.py`). The plan names `edit_file`, which does not
+  exist before M6, so the test uses a writer tool fake. When M6 adds `edit_file`, add the same test with it.
+- **Redaction test:** a fake key in a tool result is written as `[REDACTED]`, and a test confirms the model gets the
+  cleaned text too (`test_redact.py`, `test_loop_trajectory.py`).
+- **"A run yields a trajectory readable with `jq`":** done, see the real run above.
+- **No `request_permission` tool:** none exists, and the permissions of a run come only from the profile.
+
+Where I went beyond or away from the plan:
+
+- There is no `Workspace` class. A directory plus `resolve_inside` was enough, and the deny-list lives in the same
+  function so that no tool can forget it. A class would be worth adding only if the workspace needs state (M7, the
+  sandbox).
+- The plan's deny-list example is `.env` and `**/*.pem`; the default is wider (keys, credentials, `.git`
+  internals, ...) and every profile gets it on top of its own list.
+- The plan lists ten event types; M5 has six (`task`, `model_request`, `model_response`, `tool_call`,
+  `tool_result`, `outcome`). `hook_decision`, `verification`, `correction` and `escalation` should be added by the
+  milestones that produce those events, not before there is something to log.
+- Not done: `decision` is `allow` for an unknown tool name (the next event shows `not_found`), and a caller that
+  forgets to pass a `redactor` gets shape-only redaction.
