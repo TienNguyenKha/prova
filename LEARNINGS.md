@@ -55,3 +55,48 @@ byte-identical prefix; if the order changes between turns or runs, the cache mis
 (2) **Reproducibility**: the model sees a different prompt if tool order changes, so benchmark results would differ
 between runs for reasons unrelated to the agent. `Registry.__iter__` therefore sorts by name instead of using
 registration order, so the result does not depend on import order or on who registered first.
+
+## M0: One real API call (2026-11-22)
+
+- **Built:** four hand-run scripts in `experiments/act1/` (first call, parameter variants, `count_tokens`, provoked
+  errors). They call the SDK directly, not through `LLMClient`: the Protocol only grows when Prova's own code needs it.
+- **Broke / surprised me:**
+  - `input_tokens` is larger than the text I typed: "Count from 1 to 10." is about 8 tokens of text but 18 input
+    tokens. Each message carries fixed framing, and a `system` of about 6 tokens added 10. Because the API is
+    stateless, this overhead is paid again on every turn.
+  - `output_tokens` is also larger than the visible text (30 for `'1, 2, ..., 10'`, 45 for a two-line list) and
+    `thinking_tokens` was 0. I do not know why. Open question.
+  - `max_tokens=-1` is not rejected by the SDK: the request goes out and the **server** answers 400.
+- **Learned:** the SDK retries only what is plausibly transient and never retries a 4xx other than 408, 409 and 429.
+  Checked in `_base_client.py` (`_should_retry`, `DEFAULT_MAX_RETRIES = 2`).
+
+### Error table
+
+| Situation | Exception | HTTP | SDK retries? | Evidence |
+|---|---|---|---|---|
+| Wrong model name | `NotFoundError` | 404 | no | one `HTTP Request` log line |
+| Invalid API key | `AuthenticationError` | 401 | no | one log line |
+| `max_tokens=-1` | `BadRequestError` | 400 | no | server-side validation, one log line |
+| Empty message content | `BadRequestError` | 400 | no | one log line |
+| Connection refused | `APIConnectionError` | none | **yes, 2 retries** | two "Retrying" lines (0.48s, 0.91s), 1.40s total |
+
+All derive from `APIStatusError > APIError > AnthropicError` (connection errors skip `APIStatusError`).
+Retry on 408/409/429/5xx is read from the SDK source, not observed (the server cannot be made to return them on demand).
+Decision (see ROADMAP): wrap every `anthropic.APIError` into `LLMError` with `from e`; no subclasses, no own retry.
+
+### Answers to the milestone questions
+
+**Which values can `stop_reason` take, what do they mean, and how should code react?**
+Observed in this milestone: `end_turn` (the model finished by itself: the answer is complete), `max_tokens`
+(cut off at my limit: the text is **incomplete**, so never treat it as a finished answer; raise the limit or continue),
+`stop_sequence` (a configured string was produced; the matched string is in `stop_sequence` and is **not** part of
+the text). Not observed yet, listed from the API docs and to be verified when used: `tool_use` (the model wants a
+tool run: execute it and send back a `tool_result`; this drives the loop in M2/M4), and further values such as
+`pause_turn` and `refusal`. The rule for code: branch on `stop_reason` explicitly and make unknown values an error,
+never assume `end_turn`.
+
+**Do `count_tokens` and `usage.input_tokens` match? Why?**
+Yes, exactly, on all 3 inputs tried (19/19, 18/18, 28/28, with and without `system`). Both count the whole request as
+the model sees it, including the framing around messages and `system`, not only my characters. Only 3 inputs were
+tried (no tools, images or long prompts), so this is "matched on what I tried", not "always matches". It is useful
+for budgeting before paying for a generation (M17, M24).
