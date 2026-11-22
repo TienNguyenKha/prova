@@ -14,7 +14,7 @@ class App:
 
 
 def build_app(settings: Settings, *, llm: LLMClient | None = None) -> App:
-    """Create the client, register everything, freeze the registries. Tests pass a fake `llm`."""
+    """Use the given `llm` (tests pass a fake) or build the real client, and wire the App."""
     # TODO(M4): register tools here, then freeze the registry before returning.
     return App(
         settings=settings,

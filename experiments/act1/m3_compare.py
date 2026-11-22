@@ -114,7 +114,8 @@ def run_one(method: str, fn: Callable[[str], object], case: str, user: str, run:
         outcome, detail = "no_tool_call", str(e)
     except anthropic.APIError as e:
         outcome, detail = "api_error", f"{type(e).__name__}: {e.message}"
-    return Result(method, case, run, outcome, time.perf_counter() - started, detail[:200])
+    shown = detail if len(detail) <= 200 else detail[:200] + "..."  # say so when the detail is cut
+    return Result(method, case, run, outcome, time.perf_counter() - started, shown)
 
 
 def load_cases(cases_dir: Path) -> list[tuple[str, str]]:

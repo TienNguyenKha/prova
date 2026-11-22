@@ -18,6 +18,9 @@ Update this file at the end of every working session.
 - **M3** Structured output: `prova/structured.py` (`extract`, `check_stop_reason`, `parse_structured`,
   `BugClassification`), `StructuredError` + `StructuredErrorKind`, `prova/stats.py` (`mean_sem`), 30 unit tests,
   20 snippets in `experiments/act1/m3_cases/`, and four hand-run scripts. Both comparison tables are in `LEARNINGS.md`.
+- **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
+  that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
+  not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
 
 ## In Progress
 
@@ -27,7 +30,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- Close Act I: review the code against `plans/shared/anti-patterns.md`, check ROADMAP and LEARNINGS (M0 to M3).
+- Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - M4: read-only ReAct loop (Act II). Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up)
   belongs to the caller, so decide it when the first caller exists.
 
@@ -49,7 +52,7 @@ Update this file at the end of every working session.
 | 2026-11-22 | `uv` for the environment; `src/` layout | Pinned, hashed lockfile; tests import the installed package, not a stray local file. |
 | 2026-11-22 | Code, comments and error messages in English | The repo is a portfolio piece; explanations in chat stay Vietnamese. |
 | 2026-11-22 | M0a cannot test "registry frozen after build_app" | `App` has no registry until M4; test is a `TODO(M4)` in `tests/unit/test_app.py`. |
-| 2026-11-22 | Wrap every `anthropic.APIError` into `LLMError` (with `from e`) in `llm/`; no subclasses yet; no own retry | The SDK already retries connection errors, 408/409/429/5xx (2 retries); a second retry layer would multiply attempts. Split subclasses only when a caller needs different handling (M23). |
+| 2026-11-22 | Decided, to implement with the first caller (M4): wrap every `anthropic.APIError` into `LLMError` (with `from e`) in `llm/`; no subclasses yet; no own retry | The SDK already retries connection errors, 408/409/429/5xx (2 retries); a second retry layer would multiply attempts. Split subclasses only when a caller needs different handling (M23). |
 | 2026-11-22 | `UsageRecord` is a frozen dataclass; experiment CSVs carry no `schema_version` | Frozen follows the conventions for internal trusted values. The CSV is a throwaway experiment log; the trajectory log (M5) is a durable format and will carry `schema_version`. |
 | 2026-11-22 | `LLMClient` stays minimal (`create` only); experiments call the SDK directly | The Protocol grows when Prova's own code needs it (`stream`, `system`/`tools` when the agent loop moves into `src/` at M4; `count_tokens` at M23). |
 | 2026-11-22 | `read_file` confines paths with `resolve()` + `is_relative_to`; `build_tool_results` always sends ONE user message | Resolving first defeats `..`, symlinks and sibling-prefix tricks. The API accepted split results in M2, but one message is the documented shape and keeps the pairing rule easy to reason about. Open: OS permission errors (TODO M4) and the check-then-read gap (sandbox, M7). |

@@ -34,6 +34,8 @@ class LLMClient(Protocol):
     def messages(self) -> MessagesAPI: ...
 
 
+# TODO(M4): wrap the SDK client so every anthropic.APIError becomes LLMError (`raise ... from e`), so that
+# callers never import anthropic just to catch errors. Until then APIError propagates as is.
 def make_client(settings: Settings) -> LLMClient:
     """Build the real client. Called from build_app only, never at import time."""
     return anthropic.Anthropic(

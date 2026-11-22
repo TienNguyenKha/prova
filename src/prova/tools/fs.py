@@ -23,7 +23,11 @@ FS_TOOLS: list[ToolParam] = [READ_FILE_TOOL]
 
 
 def read_file(root: Path, path: str, *, max_bytes: int = DEFAULT_MAX_BYTES) -> str:
-    """Read a UTF-8 text file that lives inside `root`. Every failure is a ToolError the model can act on."""
+    """Read a UTF-8 text file that lives inside `root`.
+
+    Failures the model can fix (outside the root, missing, directory, too large, not UTF-8) are ToolErrors.
+    OS-level read errors such as a permission error are not mapped yet and propagate (see the TODO below).
+    """
     resolved_root = root.resolve()
     # resolve() follows `..` and symlinks, so the check below sees where the path REALLY points.
     # An absolute `path` replaces the root in the join, then fails the check unless it is inside the root.

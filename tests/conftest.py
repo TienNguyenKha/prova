@@ -11,7 +11,10 @@ from prova.config import Settings, load_settings
 
 @pytest.fixture(autouse=True)
 def _block_network(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Block every network connection, except in tests marked `live`."""
+    """Block every network connection, except in tests marked `live`.
+
+    Only `socket.socket.connect` is patched: `connect_ex` and other low-level paths are not covered.
+    """
     if request.node.get_closest_marker("live") is not None:
         return
 
