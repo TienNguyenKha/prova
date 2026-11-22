@@ -1,0 +1,51 @@
+[project]
+name = "prova"
+version = "0.1.0"
+description = "Security coding agent: no proof, no finding."
+readme = "README.md"
+authors = [
+    { name = "tiennk", email = "tien.nguyen26@mservice.com.vn" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=2.12.0",
+    "pydantic>=2.14.4",
+    "python-dotenv>=1.2.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RET", "PTH", "S", "BLE", "T20"]
+# S = Bandit rules, BLE = blocks bare `except Exception`, T20 = blocks print
+
+[tool.ruff.lint.per-file-ignores]
+"experiments/**" = ["T20"]   # experiment scripts may print
+"tests/**" = ["S101"]        # assert is normal in tests
+
+[tool.pyright]
+include = ["src", "tests"]
+strict = ["src"]
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not live and not docker' --strict-markers"
+markers = [
+    "live: calls the real API",
+    "docker: needs Docker",
+    "slow: long-running",
+]
