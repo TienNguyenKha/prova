@@ -10,6 +10,9 @@ Update this file at the end of every working session.
   `ruff`, `pyright` (strict) and `pytest` are green.
 - **M0** One real API call: `experiments/act1/m0_first_call.py`, `m0_variants.py`, `m0_count_tokens.py`,
   `m0_errors.py`. Error table and `stop_reason` notes are in `LEARNINGS.md`.
+- **M1** Multi-turn chat and streaming: `prova/llm/usage.py` (`UsageRecord`, `UsageLog`) with unit tests,
+  `m1_chat.py`, `m1_plot.py`, `m1_stream.py`. Chart and TTFT table are in `LEARNINGS.md`.
+  Step 6 (stream with a tool) moved to M2.
 
 ## In Progress
 
@@ -19,8 +22,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M1: multi-turn conversation and streaming.
-- M2: first hand-written tool.
+- M2: first hand-written tool (also: stream a request with a tool and look at `input_json_delta`, deferred from M1).
 - M3: structured output.
 
 ### P1
@@ -42,3 +44,5 @@ Update this file at the end of every working session.
 | 2026-11-22 | Code, comments and error messages in English | The repo is a portfolio piece; explanations in chat stay Vietnamese. |
 | 2026-11-22 | M0a cannot test "registry frozen after build_app" | `App` has no registry until M4; test is a `TODO(M4)` in `tests/unit/test_app.py`. |
 | 2026-11-22 | Wrap every `anthropic.APIError` into `LLMError` (with `from e`) in `llm/`; no subclasses yet; no own retry | The SDK already retries connection errors, 408/409/429/5xx (2 retries); a second retry layer would multiply attempts. Split subclasses only when a caller needs different handling (M23). |
+| 2026-11-22 | `UsageRecord` is a frozen dataclass; experiment CSVs carry no `schema_version` | Frozen follows the conventions for internal trusted values. The CSV is a throwaway experiment log; the trajectory log (M5) is a durable format and will carry `schema_version`. |
+| 2026-11-22 | `LLMClient` stays minimal (`create` only); experiments call the SDK directly | The Protocol grows when Prova's own code needs it (`stream` and `system`/`tools` at M2, `count_tokens` at M23). |

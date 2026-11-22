@@ -100,3 +100,59 @@ Yes, exactly, on all 3 inputs tried (19/19, 18/18, 28/28, with and without `syst
 the model sees it, including the framing around messages and `system`, not only my characters. Only 3 inputs were
 tried (no tools, images or long prompts), so this is "matched on what I tried", not "always matches". It is useful
 for budgeting before paying for a generation (M17, M24).
+
+## M1: Multi-turn chat and streaming (2026-11-22)
+
+- **Built:** `prova/llm/usage.py` (`UsageRecord`, `UsageLog`, CSV export; unit-tested, test first), and four
+  hand-run scripts: `m1_chat.py` (interactive and `--auto`), `m1_plot.py`, `m1_stream.py`.
+  Step 6 (stream with a tool, `input_json_delta`) is deferred to M2: there is no tool yet.
+- **Broke / surprised me:**
+  - Each turn's `input` is about the previous `input` + previous `output` + ~20 tokens (new message and framing).
+    The one exception was the turn after an answer cut by `max_tokens` (about 40 tokens lower than predicted).
+    Unexplained; probably related to the open `output_tokens` question from M0.
+  - "About 100 words" in Vietnamese produced ~350 output tokens; "about 150 words" produced ~500.
+    I predicted 150-300. Vietnamese costs more tokens per word than I assumed.
+  - One `content_block_delta` is not one token: ~5-6 tokens per delta, and deltas arrive in bursts.
+  - The IDE flagged `csv_path` as possibly unbound (assigned inside `try`, used in `finally`); `pyright` does not
+    check `experiments/`, so only the IDE caught it.
+- **Learned:** the cost of a chat is the history, not the new message. Latency, on the other hand, did not grow with
+  input in this range (about 2.0-2.4s for 42 to 5490 input tokens on Haiku): it follows the output length.
+
+### Token usage over 15 scripted turns (Haiku)
+
+![Input and output tokens per turn, and cumulative input tokens](experiments/act1/results/m1_tokens.png)
+
+| | Turn 1 | Turn 15 | Total |
+|---|---|---|---|
+| input per turn | 42 | 5490 | 40,607 (cumulative) |
+| output per turn | 282 | 338 | 5,224 (mean ~348) |
+
+Input grows ~390 tokens per turn, so the cumulative input is quadratic: `42*N + 390*N*(N-1)/2` gives ~41,600 for
+N=15 (measured 40,607). Extrapolating, 30 turns would cost about 170,000 input tokens, ~4x the cost of 15 turns.
+Without history (only the new message each turn) the same 15 turns would cost about 15 * 42 = 630, so resending the
+history multiplied the input by ~60. This extrapolation is from one run, not a measured 30-turn chat.
+
+### Streaming: TTFT versus total time (3 runs per model)
+
+| Model | TTFT (mean) | Total (mean) | TTFT / total | Tokens per second after first token |
+|---|---|---|---|---|
+| claude-haiku-5-5 | 0.80s | 2.64s | 30% | ~260 (derived) |
+| claude-sonnet-5-5 | 1.13s | 3.86s | 29% | ~190 (derived) |
+
+`message_start`, `content_block_start` and the first delta arrive within ~2 ms of each other: the wait is all before
+the first event. Only the total time separates the models cleanly; TTFT/total ranged 22-36% across runs (n=3), so
+30% vs 29% is noise.
+
+### Answers to the milestone questions
+
+**How much of the total time is TTFT? What does streaming help with, and what does it not?**
+About 30% on both models (n=3, noisy). Streaming helps the person watching: they see the first text after ~0.8-1.1s
+instead of waiting 2.6-3.9s, about 3x sooner, and a UI can show progress or let them cancel early. It does **not**
+shorten the total time to a complete answer, reduce tokens or cost, or stop the input from growing with history. For
+an agent it barely matters: code needs the whole message to know `stop_reason` and the tool arguments, so streaming
+here is a display feature, not a speed feature.
+
+**Why is turn 10 more expensive than turn 1?**
+The API is stateless, so every turn resends the whole history. Input tokens grow linearly with the turn number
+(~390 per turn here) and the total bill grows quadratically. This is the motivation for compaction (M17) and prompt
+caching (M23).
