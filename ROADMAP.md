@@ -50,6 +50,7 @@ Update this file at the end of every working session.
   asks to change the tests (with and without the contract text: only the permissions stopped it in the second).
   Table "rule -> mechanism" in `LEARNINGS.md`, with the two rules that are only requests.
 - **M9b** Prompt as code: `prova/prompts/` (`render_system` builds the system prompt from layers and only the tools the run is offered; `render_user_context` puts the task in `<untrusted_issue>`), `TaskEvent.prompt_hash`, the M4/M6/M8b scripts use it. 907 unit tests; real runs with two prompts gave two hashes. Entry in `LEARNINGS.md`.
+- **Act II review** against the anti-pattern checklist (greps + reading): clean except one silent cut in the `whitespace_mismatch` error (fixed, test first, shared `_listed`). 908 unit tests. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -64,7 +65,7 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- M10 (next in `plans/act-2-harness.md`).
+- Coverage floor for `src/prova/tools` (100%, CI blocks a drop): `pytest-cov` is installed; `tools/edit.py` is at 91% (lines 67, 84-85, 103-105, 128, 142, 239-240, 258-265), everything else in `tools/` is 100%. Cover those lines, then set `fail_under`.
 - Check `test_command` of the report (it is trusted today), and decide whether the hook mechanisms should try the hook instead of looking for it.
 - Decide whether the tests that start real MCP servers (about 20 s of the default run) get the `slow` marker.
 - Sandbox for MCP servers written by others (needs interactive stdin in `DockerSandbox`); before M21.

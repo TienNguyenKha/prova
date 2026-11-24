@@ -815,3 +815,21 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   <= 600, the `fix` system prompt <= 1100; measured 792 for `fix`, 301 for `review`).
 - **Open:** the hash covers the system prompt and the tools, not the user turn or the model name; the model name is
   in the trajectory already. Nothing yet compares two hashes (that is M16). The layers are in English only.
+
+## End of Act II: review against the anti-pattern checklist (2026-11-24)
+
+- **How:** one grep per item over `src/` (#1, 2, 3, 6, 7, 12, 13, 14), then reading each hit; #8 by finding the
+  test of the error path. Nothing here is a proof: a grep finds what I thought to look for.
+- **Clean:** #2 (no `json.loads` or regex on model output), #7 (the only `anthropic.Anthropic(` is in the factory, no
+  model name in `src`), #12 (`system=` only gets what `render_system` builds), #13 (no `shell=True`), #14 for the
+  sandbox image (pinned by digest). #8: the sandbox and the MCP servers are context managers, with tests for leaving
+  by an exception, closing twice and running after close.
+- **Four `except Exception`, all kept:** the registry logs the traceback and re-raises in strict mode; the MCP thread
+  logs and marks the connection dead; the hook pipeline and the contract check treat a crash as "blocked" and "not
+  proved". None lets anything through.
+- **One real finding (#3):** the `whitespace_mismatch` error cut its list of lines at 10 without saying so, while
+  `ambiguous` did. The model reads that message to decide its next edit. Fixed test first with one shared
+  `_listed`, so the two errors cannot drift apart again.
+- **Two cuts left on purpose:** the 200-character reason of an MCP start error and the 80-character tool name in a
+  log. Only a person reads them, not the model.
+- **Not done:** `uv.lock` hashes were not checked for #14, and the coverage floor for tools does not exist yet.

@@ -147,12 +147,17 @@ def _normalised(text: str) -> str:
     return " ".join(text.split())
 
 
+def _listed(lines: list[int]) -> str:
+    """The line numbers, cut at MAX_LISTED_LOCATIONS, and how many are left out when it cuts."""
+    shown = ", ".join(str(n) for n in lines[:MAX_LISTED_LOCATIONS])
+    left_out = len(lines) - MAX_LISTED_LOCATIONS
+    return f"{shown}, and {left_out} more" if left_out > 0 else shown
+
+
 def _ambiguous(text: str, starts: list[int]) -> ToolError:
     lines = [_line_of(text, start) for start in starts]
-    listed = ", ".join(str(n) for n in lines[:MAX_LISTED_LOCATIONS])
-    more = f", and {len(lines) - MAX_LISTED_LOCATIONS} more" if len(lines) > MAX_LISTED_LOCATIONS else ""
     message = (
-        f"old_str matches {len(lines)} locations (lines {listed}{more}). "
+        f"old_str matches {len(lines)} locations (lines {_listed(lines)}). "
         "Include more surrounding lines to make it unique."
     )
     return ToolError(ErrorCode.AMBIGUOUS, message)
@@ -173,7 +178,7 @@ def _no_match(path: str, text: str, old: str) -> ToolError:
 
     same_apart_from_spaces = [number for number, window in windows if _normalised(window) == _normalised(old)]
     if same_apart_from_spaces and _normalised(old):
-        where = ", ".join(str(n) for n in same_apart_from_spaces[:MAX_LISTED_LOCATIONS])
+        where = _listed(same_apart_from_spaces)
         word = "line" if len(same_apart_from_spaces) == 1 else "lines"
         message = (
             f"old_str matches after whitespace normalisation at {word} {where}. "

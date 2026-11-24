@@ -122,6 +122,15 @@ def test_a_difference_in_whitespace_is_named_as_such(root: Path) -> None:
     assert content(root, "f.py") == "def f():\n    return 1\n"
 
 
+def test_a_whitespace_difference_at_many_places_says_how_many_are_not_listed(root: Path) -> None:
+    (root / "many.py").write_text("x = 1\n" * 12, encoding="utf-8")
+    result = edit(root, "x  = 1", "x = 2", path="many.py")
+    assert result.error_code == ErrorCode.WHITESPACE_MISMATCH
+    assert "lines 1, 2, 3, 4, 5, 6, 7, 8, 9, 10" in result.message
+    assert "and 2 more" in result.message
+    assert content(root, "many.py") == "x = 1\n" * 12
+
+
 def test_line_numbers_copied_from_read_file_are_recognised(root: Path) -> None:
     result = edit(root, "2│ beta = 2", "2│ beta = 20")
     assert result.error_code == ErrorCode.INVALID_ARGS
