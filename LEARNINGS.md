@@ -1051,3 +1051,23 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   recording (about $0.20). Dropping the lint hook ends the Docker tests in an error before they start (the contract
   most likely); I did not read the message. No trajectory viewer yet (step 4 of the plan); the scheduled CI gate (step 5)
   is postponed, as the repo has no CI.
+
+## M12: the trajectory viewer (2026-11-24)
+
+- **Built:** `bench/view.py` (`load_events`, `render`, `python -m bench.view <file>`), 17 unit tests.
+- **Times from the timestamps:** the log has no latency field, so the time of a model call is the time between its
+  `model_request` and `model_response`, and of a tool between `tool_call` and `tool_result`. Money is the tokens
+  times a price from `bench/pricing.yaml`. Where either cannot be known it says `n/a`, and a total is `n/a` if any
+  part is.
+- **The terminal is an attack surface:** what the viewer shows comes from the model and from tools, and an escape
+  sequence in it could hide or rewrite the line being read. Every dynamic text goes through one function that
+  replaces anything not printable (the escape, bell, carriage return, newline) with a space.
+- **What it showed on the real t001 run:** `run_tests` answered "no tests were collected", and the stop hook let the
+  run end for the same reason: the agent had nothing that could tell it the regex was too wide. Seen in one
+  screen; with `jq` it took several commands.
+- **Checked:** 12 mutations; the 3 that survived (a task line that does not skip the issue tag, a prompt too large for
+  the price shown with a cost, and one of my own that did not even compile) got tests or were redone.
+- **Open:** the CI gate on a schedule (step 5 of M12) is postponed: the repo has no CI, and a gate that compares
+  with a baseline by SEM needs the bigger benchmark that was put in the backlog (M11). The replay Docker test is
+  the local form of "the harness changed and the chain of tool calls moved": it was proven by rewording a hook note.
+

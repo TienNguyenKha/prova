@@ -200,7 +200,8 @@ ch05 `time_travel_debug.py`; ch18 `trajectory_visualizer.py`, `ci_eval_runner.py
 
 Replay chạy được; CI gate báo đúng khi bạn cố tình làm hỏng harness.
 
-- [ ] Hoàn thành
+- ⏸ Bước 5 (CI gate theo lịch) và 6 (Phoenix) hoãn: repo chưa có CI, và cổng so với baseline cần benchmark lớn hơn (M11, đã hoãn). Dạng cục bộ có rồi: test replay trên Docker đỏ khi harness đổi chuỗi tool call.
+- [x] Hoàn thành
 
 ---
 
