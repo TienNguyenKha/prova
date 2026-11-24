@@ -31,6 +31,8 @@ def _resolve_target(path: str, ctx: RunContext) -> tuple[Path, str]:
 
 def _require_writable(relative: str, path: str, ctx: RunContext) -> None:
     """Before anything is read or made: a path outside the write paths must not reveal whether it exists."""
+    if ctx.write_deny.matches(relative):  # first: a read-only path stays read-only whatever write_paths says
+        raise ToolError(ErrorCode.PERMISSION_DENIED, f"{path} is read-only in this run")
     if not ctx.write.matches(relative):
         raise ToolError(ErrorCode.PERMISSION_DENIED, f"{path} is not writable in this run")
 

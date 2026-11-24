@@ -102,6 +102,10 @@ class TrajectoryError(ProvaError):
     """The log of a run could not be written. A run that cannot be logged cannot be audited, so it stops."""
 
 
+class ContractError(ProvaError):
+    """The agent's contract does not hold on this configuration: a rule has no working mechanism behind it."""
+
+
 class McpConnectionError(ProvaError):
     """A connection to an MCP server cannot do what was asked. The subclasses say why."""
 

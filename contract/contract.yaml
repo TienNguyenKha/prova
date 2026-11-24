@@ -1,0 +1,66 @@
+# The contract of the agent, for code to read. contract/AGENTS.md says the same for the model to read, and a test
+# keeps the two from drifting: the text of every rule here must appear word for word there.
+#
+# Every rule names the mechanism that enforces it (see src/prova/mechanisms.py), and at start-up that mechanism
+# proves it works on this run's real configuration: a rule whose mechanism does not hold stops the run.
+# `prompt_only` means nothing enforces the rule. It is a request to the model, and it is listed as such.
+version: 1
+
+must_not:
+  - id: no_test_edits
+    text: Do not create or change test files. Read them, and fix the code.
+    enforced_by: permissions.write_blocked
+    params: {profile: fix, path: tests/unit/test_probe.py}
+
+  - id: no_secret_reads
+    text: Do not read secrets such as .env files and private keys.
+    enforced_by: permissions.read_blocked
+    params: {profile: fix, path: .env}
+
+  - id: no_network_tools
+    text: Do not look for a way onto the network. You have no tool for it.
+    enforced_by: permissions.lacks
+    params: {profile: fix, permission: network}
+
+  - id: no_network_in_commands
+    text: Do not try to reach the network from a command. Commands run with none.
+    enforced_by: sandbox.network_none
+
+  - id: no_secrets_in_logs
+    text: Never print secrets. Anything shaped like a key is removed from what you see and from the log.
+    enforced_by: trajectory.redaction
+
+  - id: stay_in_scope
+    text: Change only what the task asks for. Do not refactor unrelated code.
+    enforced_by: prompt_only
+
+  - id: no_guessing
+    text: If you cannot find something, say so instead of guessing.
+    enforced_by: prompt_only
+
+definition_of_done:
+  - id: tests_green
+    text: The tests of the project pass.
+    check: hook.stop.tests_before_stop
+
+  # The lint hook adds a note to the result of an edit; it cannot stop the run. What is checked here is that it
+  # RUNS after every edit of a Python file, not that its findings are obeyed.
+  - id: lint_checked
+    text: Ruff runs after every edit of a Python file. Fix what it reports.
+    check: hook.post.lint_after_edit
+
+  - id: report_submitted
+    text: You end by handing in your report with the submit_result tool.
+    check: tool.submit_result
+    params: {profile: fix}
+
+  # The stop hook compares the report with the files the snapshots show as really changed, both ways.
+  - id: files_listed
+    text: Your report lists exactly the files you changed, each with its reason.
+    check: hook.stop.files_listed
+
+# What the final report must contain: the fields of the submit_result tool. The hook above holds the agent back
+# until it has handed one in and its list of files is true.
+output_contract: [files_changed_with_reason, test_command, assumptions]
+
+escalate_when: [ambiguous_scope, requires_secret, irreversible_action]

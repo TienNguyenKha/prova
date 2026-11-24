@@ -160,3 +160,44 @@ def test_a_context_from_a_profile_has_no_sandbox_unless_one_is_given(tmp_path: P
 
     sandbox = Marker()
     assert RunContext.from_profile(profile, tmp_path, sandbox=sandbox).sandbox is sandbox
+
+
+# --- Readable but not writable -------------------------------------------------------------------------
+
+
+READ_ONLY_TESTS = """
+profiles:
+  fix:
+    allow: [read, write]
+    write_paths: ["**"]
+    write_deny_paths: ["tests/**", "conftest.py"]
+"""
+
+
+def test_a_profile_can_name_paths_that_may_be_read_but_never_written(tmp_path: Path) -> None:
+    profile = get_profile(load_profiles(write(tmp_path, READ_ONLY_TESTS)), "fix")
+    assert profile.write_deny_paths == ("tests/**", "conftest.py")
+    assert "tests/**" not in profile.denied_paths  # reading is still allowed: the agent has to read the tests
+
+
+def test_without_write_deny_paths_nothing_is_read_only(tmp_path: Path) -> None:
+    profile = get_profile(load_profiles(write(tmp_path, GOOD)), "fix")
+    assert profile.write_deny_paths == ()
+
+
+def test_the_context_carries_the_read_only_paths_and_they_win_over_the_write_paths(tmp_path: Path) -> None:
+    profile = get_profile(load_profiles(write(tmp_path, READ_ONLY_TESTS)), "fix")
+    ctx = RunContext.from_profile(profile, tmp_path)
+    assert ctx.write.matches("tests/unit/a.py")  # allowed by write_paths ...
+    assert ctx.write_deny.matches("tests/unit/a.py")  # ... and still read-only
+    assert not ctx.write_deny.matches("src/prova/app.py")
+
+
+def test_a_context_that_was_not_given_read_only_paths_has_none() -> None:
+    assert not RunContext(workspace=Path.cwd()).write_deny.matches("tests/a.py")
+
+
+def test_a_bad_read_only_pattern_is_found_when_the_file_is_loaded(tmp_path: Path) -> None:
+    text = READ_ONLY_TESTS.replace('"conftest.py"', '"tests/"')  # a trailing slash: an empty path segment
+    with pytest.raises(ConfigError, match="empty path segment"):
+        load_profiles(write(tmp_path, text))

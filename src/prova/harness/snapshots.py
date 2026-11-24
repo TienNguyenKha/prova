@@ -45,6 +45,12 @@ class SnapshotStore:
             missing.append(parent)
         self._entries[path] = _Entry(None, tuple(reversed(missing)))
 
+    def changed(self) -> tuple[Path, ...]:
+        """The tracked files that really differ from what they were: new, deleted or with other content.
+        A file that was edited and put back exactly is tracked (see `paths`) but not changed. If a file
+        cannot be read we cannot show it is the same, so it counts as changed."""
+        return tuple(path for path, entry in self._entries.items() if _differs(path, entry))
+
     def rollback(self, path: Path) -> None:
         """Put `path` back as it was: restore its bytes, or remove it (and the directories made for it)."""
         entry = self._entries.get(path)
@@ -81,6 +87,16 @@ class SnapshotStore:
     def discard(self) -> None:
         """The run succeeded: forget every snapshot and leave the files as they are."""
         self._entries.clear()
+
+
+def _differs(path: Path, entry: _Entry) -> bool:
+    try:
+        now: bytes | None = path.read_bytes()
+    except FileNotFoundError:
+        now = None
+    except OSError:
+        return True
+    return now != entry.original
 
 
 def _remove_empty_dirs(directories: tuple[Path, ...]) -> None:

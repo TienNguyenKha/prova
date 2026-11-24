@@ -9,3 +9,6 @@ profiles:
     allow: [read, write, exec]
     write_paths: ["**"]
     deny_paths: [".git/**", "hidden_tests/**"]
+    # Tests can be read but never written: a fix that edits the test to make it pass is not a fix.
+    # A name without a slash matches at any depth, so these also cover tests in a subfolder.
+    write_deny_paths: ["**/tests/**", "test_*.py", "*_test.py", "conftest.py"]

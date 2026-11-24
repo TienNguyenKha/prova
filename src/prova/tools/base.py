@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from prova.errors import ErrorCode
 from prova.harness.patterns import PathMatcher
 from prova.harness.permissions import DEFAULT_DENY_PATHS, Permission, Profile
+from prova.harness.report import Submission
 from prova.harness.snapshots import SnapshotStore
 from prova.sandbox.base import Sandbox
 
@@ -27,8 +28,12 @@ class RunContext:
     deny: PathMatcher = field(default_factory=lambda: PathMatcher(DEFAULT_DENY_PATHS))
     # Where write tools may write. The default matches nothing: without write paths a run cannot write.
     write: PathMatcher = field(default_factory=lambda: PathMatcher(()))
+    # Paths a run may read but never write, even where `write` allows it. Checked first, so it always wins.
+    write_deny: PathMatcher = field(default_factory=lambda: PathMatcher(()))
     # The originals of the files this run changed, so the changes can be undone. One store per run.
     snapshots: SnapshotStore = field(default_factory=SnapshotStore)
+    # The final report of the run, once the agent hands it in (see the submit_result tool). One per run.
+    submission: Submission = field(default_factory=Submission)
     # Where commands run. None means this run has no sandbox, and then no command runs at all.
     sandbox: Sandbox | None = None
 
@@ -44,6 +49,7 @@ class RunContext:
             permissions=profile.allow,
             deny=PathMatcher(profile.denied_paths),
             write=PathMatcher(profile.write_paths),
+            write_deny=PathMatcher(profile.write_deny_paths),
             sandbox=sandbox,
         )
 

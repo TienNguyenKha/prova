@@ -5,6 +5,8 @@ The model cannot call them, skip them or change what they run. Both run in the s
 model wrote ever runs on the host. A check that could not run is never reported as a check that passed.
 """
 
+from pathlib import Path
+
 from prova.errors import ToolError
 from prova.harness.hooks import HookDecision, HookEvent
 from prova.tools.base import RunContext
@@ -124,3 +126,49 @@ def _keep_end(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text.rstrip("\n")
     return f"{text[-limit:].lstrip(chr(10))}\n[showing the last {limit} of {len(text)} characters]"
+
+
+class FilesListed:
+    """When the model says it is done: has it handed in a report, and does the report say what really changed?
+
+    What really changed is what the snapshots show. What the agent says it changed is the report. Both ways of
+    being wrong are caught: a file changed and not listed, and a file listed that did not change.
+    """
+
+    name = "files_listed"
+
+    def __init__(self, *, max_listed: int = 10) -> None:
+        self._max_listed = max_listed
+
+    def __call__(self, ev: HookEvent) -> HookDecision:
+        report = ev.ctx.submission.report
+        if report is None:
+            return HookDecision.continue_run(
+                "Your report was not handed in. Call submit_result with files_changed_with_reason, "
+                "test_command and assumptions, then finish."
+            )
+        root = ev.ctx.workspace.resolve()
+        changed = {_relative(root, path) for path in ev.ctx.snapshots.changed()}
+        listed = {change.path for change in report.files_changed_with_reason}
+        unlisted, invented = sorted(changed - listed), sorted(listed - changed)
+        if not unlisted and not invented:
+            return HookDecision.allow()
+        lines = ["Your report does not match what changed."]
+        if unlisted:
+            lines.append(f"- changed but not listed: {self._names(unlisted)}")
+        if invented:
+            lines.append(f"- listed but not changed: {self._names(invented)}")
+        lines.append("Call submit_result again with the right list, then finish.")
+        return HookDecision.continue_run("\n".join(lines))
+
+    def _names(self, paths: list[str]) -> str:
+        shown = ", ".join(paths[: self._max_listed])
+        rest = len(paths) - self._max_listed
+        return f"{shown}, and {rest} more" if rest > 0 else shown
+
+
+def _relative(root: Path, path: Path) -> str:
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:  # outside the workspace: shown as it is, so it can never match the report
+        return str(path)

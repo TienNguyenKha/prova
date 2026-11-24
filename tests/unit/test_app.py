@@ -53,12 +53,13 @@ def test_app_is_frozen(settings: Settings) -> None:
 # --- The tools ----------------------------------------------------------------
 
 
-def test_build_app_registers_the_read_only_tools_in_name_order(settings: Settings) -> None:
+def test_build_app_registers_the_read_tools_in_name_order(settings: Settings) -> None:
     app = build_app(settings, llm=FakeLLM())
     assert [t["name"] for t in app.tools.to_api_tools({Permission.READ})] == [
         "list_dir",
         "read_file",
         "search_code",
+        "submit_result",
     ]
 
 

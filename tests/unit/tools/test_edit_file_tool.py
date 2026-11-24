@@ -237,3 +237,37 @@ def test_a_failed_edit_leaves_nothing_to_roll_back(root: Path) -> None:
     ctx = make_ctx(root)
     assert not edit(root, "zeta = 26", "zeta = 27", ctx=ctx).success
     assert ctx.snapshots.paths == ()
+
+
+# --- Readable but not writable: the read-only paths of a profile ---------------------------------------
+
+
+def read_only_tests_ctx(root: Path) -> RunContext:
+    return RunContext(
+        workspace=root,
+        strict=True,
+        permissions=frozenset({Permission.READ, Permission.WRITE}),
+        write=PathMatcher(("**",)),
+        write_deny=PathMatcher(("tests/**",)),
+    )
+
+
+def test_a_file_in_a_read_only_path_cannot_be_edited_even_when_everything_is_writable(root: Path) -> None:
+    (root / "tests").mkdir()
+    (root / "tests" / "test_a.py").write_text("assert True\n", encoding="utf-8")
+    result = edit(root, "True", "False", path="tests/test_a.py", ctx=read_only_tests_ctx(root))
+    assert result.error_code == ErrorCode.PERMISSION_DENIED and "read-only" in result.message
+    assert (root / "tests" / "test_a.py").read_text(encoding="utf-8") == "assert True\n"
+
+
+def test_a_symlink_into_a_read_only_path_does_not_get_around_it(root: Path) -> None:
+    (root / "tests").mkdir()
+    (root / "tests" / "test_a.py").write_text("assert True\n", encoding="utf-8")
+    (root / "shortcut.py").symlink_to(root / "tests" / "test_a.py")
+    result = edit(root, "True", "False", path="shortcut.py", ctx=read_only_tests_ctx(root))
+    assert result.error_code == ErrorCode.PERMISSION_DENIED
+    assert (root / "tests" / "test_a.py").read_text(encoding="utf-8") == "assert True\n"
+
+
+def test_the_same_context_still_edits_files_outside_the_read_only_paths(root: Path) -> None:
+    assert edit(root, "beta = 2", "beta = 20", ctx=read_only_tests_ctx(root)).success

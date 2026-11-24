@@ -45,9 +45,11 @@ class Profile(BaseModel):
 
     allow: frozenset[Permission]  # required: there is no default permission
     deny_paths: tuple[str, ...] = ()  # added to DEFAULT_DENY_PATHS, never instead of it
-    write_paths: tuple[str, ...] = ()  # where the write tools may write (used from M6); empty: nowhere
+    write_paths: tuple[str, ...] = ()  # where the write tools may write; empty: nowhere
+    # Paths that may be read but never written, even where write_paths allows it (the tests, for instance).
+    write_deny_paths: tuple[str, ...] = ()
 
-    @field_validator("deny_paths", "write_paths")
+    @field_validator("deny_paths", "write_paths", "write_deny_paths")
     @classmethod
     def _patterns_are_valid(cls, patterns: tuple[str, ...]) -> tuple[str, ...]:
         PathMatcher(patterns)  # a bad pattern is found when the file is loaded, not on the first request

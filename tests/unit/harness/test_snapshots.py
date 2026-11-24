@@ -228,3 +228,63 @@ def test_abandon_copes_with_directories_that_were_never_made(work: Path) -> None
     store.ensure(work / "a" / "b" / "new.txt")  # the mkdir failed before making anything
     store.abandon(work / "a" / "b" / "new.txt")
     assert store.paths == ()
+
+
+# --- Which files really changed ------------------------------------------------------------------------
+
+
+def test_a_file_that_was_only_looked_at_has_not_changed(work: Path) -> None:
+    file = work / "a.txt"
+    file.write_text("same", encoding="utf-8")
+    store = SnapshotStore()
+    store.ensure(file)  # tracked, then nothing was written
+    assert store.changed() == ()
+
+
+def test_a_file_whose_content_differs_has_changed(work: Path) -> None:
+    file = work / "a.txt"
+    file.write_text("before", encoding="utf-8")
+    store = SnapshotStore()
+    store.ensure(file)
+    file.write_text("after", encoding="utf-8")
+    assert store.changed() == (file,)
+
+
+def test_a_file_edited_and_then_put_back_exactly_has_not_changed(work: Path) -> None:
+    file = work / "a.txt"
+    file.write_text("original", encoding="utf-8")
+    store = SnapshotStore()
+    store.ensure(file)
+    file.write_text("changed", encoding="utf-8")
+    file.write_text("original", encoding="utf-8")
+    assert store.paths == (file,)  # it was touched ...
+    assert store.changed() == ()  # ... and it is the same as before
+
+
+def test_a_new_file_has_changed_but_a_new_file_that_was_removed_again_has_not(work: Path) -> None:
+    kept, removed = work / "kept.txt", work / "removed.txt"
+    store = SnapshotStore()
+    store.ensure(kept)
+    store.ensure(removed)
+    kept.write_text("x", encoding="utf-8")
+    removed.write_text("x", encoding="utf-8")
+    removed.unlink()
+    assert store.changed() == (kept,)
+
+
+def test_a_file_that_was_deleted_has_changed(work: Path) -> None:
+    file = work / "a.txt"
+    file.write_text("here", encoding="utf-8")
+    store = SnapshotStore()
+    store.ensure(file)
+    file.unlink()
+    assert store.changed() == (file,)
+
+
+def test_the_changed_files_come_in_the_order_they_were_first_touched(work: Path) -> None:
+    first, second = work / "b.txt", work / "a.txt"
+    store = SnapshotStore()
+    for file in (first, second):
+        store.ensure(file)
+        file.write_text("x", encoding="utf-8")
+    assert store.changed() == (first, second)

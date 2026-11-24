@@ -185,3 +185,20 @@ def test_a_refused_create_leaves_nothing_to_roll_back(root: Path) -> None:
     ctx = make_ctx(root)
     assert not create(root, "exists.py", "replaced\n", ctx=ctx).success
     assert ctx.snapshots.paths == ()
+
+
+# --- Readable but not writable: the read-only paths of a profile ---------------------------------------
+
+
+def test_a_new_file_cannot_be_made_in_a_read_only_path_and_no_directory_is_made(root: Path) -> None:
+    ctx = RunContext(
+        workspace=root,
+        strict=True,
+        permissions=frozenset({Permission.READ, Permission.WRITE}),
+        write=PathMatcher(("**",)),
+        write_deny=PathMatcher(("tests/**",)),
+    )
+    result = create(root, "tests/unit/test_new.py", "assert True\n", ctx=ctx)
+    assert result.error_code == ErrorCode.PERMISSION_DENIED and "read-only" in result.message
+    assert not (root / "tests").exists()
+    assert create(root, "src/new.py", "x = 1\n", ctx=ctx).success

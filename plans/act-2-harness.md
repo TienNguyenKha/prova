@@ -550,7 +550,7 @@ ch10 `AGENTS.md`, `online/spec_validator.py`; sách ch10 (Spec-First, Definition
 
 Mỗi dòng MUST NOT chỉ ra được cơ chế thực thi, hoặc được đánh dấu "chỉ là lời dặn".
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 

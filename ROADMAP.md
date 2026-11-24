@@ -44,6 +44,11 @@ Update this file at the end of every working session.
   thread, `McpToolAdapter`, `open_mcp_servers`), `build_app(extra_tools=...)`, `mcp.yaml` and a demo server.
   729 unit tests; one real run where the agent used `mcp__knowledge__search_knowledge`. The server runs on the
   host (ours only); nothing was tried against a hostile server. Entry in `LEARNINGS.md`.
+- **M9** Contract: `contract/contract.yaml` + `contract/AGENTS.md`, `prova/contract.py` (`check_contract` at start-up),
+  `prova/mechanisms.py` (probes on the real configuration), profile `write_deny_paths`, the `submit_result` tool, `Report`,
+  `SnapshotStore.changed()`, the `FilesListed` stop hook. 874 unit tests; real runs: normal, and two where the task
+  asks to change the tests (with and without the contract text: only the permissions stopped it in the second).
+  Table "rule -> mechanism" in `LEARNINGS.md`, with the two rules that are only requests.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -58,7 +63,8 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- M9 `AGENTS.md` contract and `contract.yaml` (next in `plans/act-2-harness.md`).
+- M9b prompts as code (next in `plans/act-2-harness.md`): `contract/AGENTS.md` is put into the system prompt by hand in the M6 script; M9b makes it a rendered, hashed, versioned prompt.
+- Check `test_command` of the report (it is trusted today), and decide whether the hook mechanisms should try the hook instead of looking for it.
 - Decide whether the tests that start real MCP servers (about 20 s of the default run) get the `slow` marker.
 - Sandbox for MCP servers written by others (needs interactive stdin in `DockerSandbox`); before M21.
 - See a real model get sent back by the stop hook (needs a task where a fix is not obviously complete).
@@ -116,3 +122,8 @@ Update this file at the end of every working session.
 | 2026-11-24 | A tool of an MCP server whose name, description or schema fails the checks is left out and reported, never repaired; the log names the rule, not the server's text | The description is the server's text and the model reads it, so cutting it would be editing it. The text is untrusted, so it is not copied into logs. |
 | 2026-11-24 | The model gets the server's schema as it is and the arguments are not checked on our side; the answer shows text only and says what was left out | The server checks its own arguments. A schema validator would add a dependency and a second opinion about a schema we do not own. |
 | 2026-11-24 | A configured server that cannot start stops the whole run, and the ones already started are closed | The config says it must be there. Going on without its tools would look like a run that had them. |
+| 2026-11-24 | The agent's contract lives in `contract/` (`contract.yaml` for code, `AGENTS.md` for the model); the root `AGENTS.md` stays a guide for people | One file cannot serve two readers: the model of Prova would read `uv run` commands and lint rules as its own rules. |
+| 2026-11-24 | Every rule names a mechanism, and at start-up the mechanism proves itself with a probe on the run's real configuration; a rule nothing enforces is written `prompt_only` and listed apart | A rule is only worth its place if something enforces it. Reading a config and reasoning about it is weaker than trying the real tool. |
+| 2026-11-24 | Profiles have `write_deny_paths` (readable, never writable); it wins over `write_paths` and is checked on the resolved path | "Do not edit tests" could not be said with `deny_paths`, which forbids reading too, and the agent has to read the tests. |
+| 2026-11-24 | The final report is the `submit_result` tool with the field names of `output_contract`; a stop hook compares it with `SnapshotStore.changed()` in both directions | Prose cannot be checked. What changed is read from the files, not from what the agent says it changed. |
+| 2026-11-24 | A lint rule in the contract means "ruff runs after every edit", not "ruff is clean" | The lint hook only adds a note, so a rule that said more would be a rule nothing enforces. |
