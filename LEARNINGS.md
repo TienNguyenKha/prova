@@ -833,3 +833,17 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **Two cuts left on purpose:** the 200-character reason of an MCP start error and the 80-character tool name in a
   log. Only a person reads them, not the model.
 - **Not done:** `uv.lock` hashes were not checked for #14, and the coverage floor for tools does not exist yet.
+
+## The coverage floor of the tools (2026-11-24)
+
+- **Measured first:** 97% over `src/prova/tools`, every file at 100% except `edit.py` (91%, 18 lines). Those lines
+  were real branches, not dead code: a directory as path, a file the system will not let us read or write, a
+  folder we cannot write in, content that is not valid UTF-8, a file that appears between the check and the
+  exclusive create, an edit in the middle of a line, and emptying a file. Eight tests, no change to the code.
+- **The floor:** `fail_under = 100` in `pyproject.toml`; `uv run pytest --cov` exits 1 below it. I checked that it
+  can fail by leaving two tests out (98.65%, exit 1).
+- **A mistake of mine:** my first "must fail" check was wrong. `--cov tests/unit/tools/test_base.py` makes pytest-cov
+  take the path as the source to measure, so it printed 0% for the wrong reason. A check that fails has to fail
+  for the reason I think it does.
+- **Limits:** 100% of lines says every line ran, not that it was checked. The floor is not in `addopts`, so a plain
+  `uv run pytest` does not enforce it; there is no CI before M10, so a person runs `--cov`.

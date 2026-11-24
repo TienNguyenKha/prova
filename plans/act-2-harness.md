@@ -618,7 +618,7 @@ Ba kiểm chứng trên xanh; có thể chạy cùng task với hai phiên bản
 ## Cuối Act II
 
 - [x] Review bằng [checklist anti-pattern](shared/anti-patterns.md), đặc biệt #1, #8, #12, #13.
-- [ ] Sàn coverage cho tool (100%) đã có từ bây giờ, CI chặn khi tụt (chi tiết ở M10).
+- [x] Sàn coverage cho tool (100%) đã có từ bây giờ, CI chặn khi tụt (chi tiết ở M10).
 - [x] `ROADMAP.md`, Decisions Log, `LEARNINGS.md` cập nhật.
 
 [Act III: Đo lường →](act-3-measurement.md)

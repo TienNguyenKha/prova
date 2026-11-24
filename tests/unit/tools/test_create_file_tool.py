@@ -1,5 +1,6 @@
 """Tests for prova.tools.edit.CreateFileTool: makes a NEW file, never overwrites one."""
 
+import os
 from collections.abc import Collection
 from pathlib import Path
 
@@ -202,3 +203,37 @@ def test_a_new_file_cannot_be_made_in_a_read_only_path_and_no_directory_is_made(
     assert result.error_code == ErrorCode.PERMISSION_DENIED and "read-only" in result.message
     assert not (root / "tests").exists()
     assert create(root, "src/new.py", "x = 1\n", ctx=ctx).success
+
+
+# --- The branches that were not covered ------------------------------------------------------------
+
+
+def test_text_that_cannot_be_written_as_utf8_is_refused(root: Path) -> None:
+    result = create(root, "bad.txt", "broken \ud800 text")  # a lone surrogate
+    assert result.error_code == ErrorCode.INVALID_ARGS and "UTF-8" in result.message
+    assert not (root / "bad.txt").exists()
+
+
+def test_a_file_that_appears_between_the_check_and_the_write_is_not_overwritten(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (root / "taken.py").write_text("mine\n", encoding="utf-8")
+    real_exists = Path.exists
+    # The check says "free": the race is the file that shows up after it. Only this one path lies.
+    monkeypatch.setattr(Path, "exists", lambda self: False if self.name == "taken.py" else real_exists(self))
+    result = create(root, "taken.py", "yours\n")
+    assert result.error_code == ErrorCode.ALREADY_EXISTS
+    assert (root / "taken.py").read_text(encoding="utf-8") == "mine\n"
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+def test_a_folder_the_system_will_not_let_us_write_in_is_a_permission_error(root: Path) -> None:
+    folder = root / "locked"
+    folder.mkdir()
+    folder.chmod(0o555)
+    try:
+        result = create(root, "locked/new.py", "x = 1\n")
+    finally:
+        folder.chmod(0o755)
+    assert result.error_code == ErrorCode.PERMISSION_DENIED and "cannot write" in result.message
+    assert not (folder / "new.py").exists()

@@ -1,5 +1,6 @@
 """Tests for prova.tools.edit.EditFileTool: exact, unique replacements, and errors written for the model."""
 
+import os
 from collections.abc import Collection
 from pathlib import Path
 
@@ -280,3 +281,51 @@ def test_a_symlink_into_a_read_only_path_does_not_get_around_it(root: Path) -> N
 
 def test_the_same_context_still_edits_files_outside_the_read_only_paths(root: Path) -> None:
     assert edit(root, "beta = 2", "beta = 20", ctx=read_only_tests_ctx(root)).success
+
+
+# --- The branches that were not covered ------------------------------------------------------------
+
+needs_user_rights = pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+
+
+def test_a_directory_is_refused_as_a_directory(root: Path) -> None:
+    result = edit(root, "a", "b", path=".")
+    assert result.error_code == ErrorCode.INVALID_ARGS and "directory" in result.message
+
+
+@needs_user_rights
+def test_a_file_the_system_will_not_let_us_read_is_a_permission_error(root: Path) -> None:
+    locked = root / "locked.py"
+    locked.write_text("x = 1\n", encoding="utf-8")
+    locked.chmod(0o000)
+    try:
+        result = edit(root, "x = 1", "x = 2", path="locked.py")
+    finally:
+        locked.chmod(0o644)
+    assert result.error_code == ErrorCode.PERMISSION_DENIED and "cannot read" in result.message
+    assert content(root, "locked.py") == "x = 1\n"
+
+
+@needs_user_rights
+def test_a_file_the_system_will_not_let_us_write_is_a_permission_error(root: Path) -> None:
+    locked = root / "readonly.py"
+    locked.write_text("x = 1\n", encoding="utf-8")
+    locked.chmod(0o444)
+    try:
+        result = edit(root, "x = 1", "x = 2", path="readonly.py")
+    finally:
+        locked.chmod(0o644)
+    assert result.error_code == ErrorCode.PERMISSION_DENIED and "cannot write" in result.message
+    assert content(root, "readonly.py") == "x = 1\n"
+
+
+def test_an_edit_in_the_middle_of_a_line_reports_that_line(root: Path) -> None:
+    result = edit(root, "= 2", "= 20")
+    assert result.success and content(root) == "alpha = 1\nbeta = 20\ngamma = 3\n"
+    assert "line 2" in result.message
+
+
+def test_emptying_a_file_succeeds_and_has_no_excerpt_to_show(root: Path) -> None:
+    (root / "short.py").write_text("x = 1\n", encoding="utf-8")
+    result = edit(root, "x = 1\n", "", path="short.py")
+    assert result.success and content(root, "short.py") == ""

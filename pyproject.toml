@@ -56,3 +56,11 @@ markers = [
     "docker: needs Docker",
     "slow: long-running",
 ]
+
+# The floor for the tools: every line of src/prova/tools is run by a unit test. Check it with `uv run pytest --cov`.
+[tool.coverage.run]
+source = ["src/prova/tools"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
