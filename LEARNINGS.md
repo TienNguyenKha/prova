@@ -1024,3 +1024,30 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   and refuses anything else; its 20 values were checked against `scipy` (a temporary environment, not a dependency).
 - **What the interval does not cover:** it is the spread between runs. It says nothing about the choice of tasks.
 - **Checked:** 8 mutations; the one that survived (`p = 100` refused) got its own assertion.
+
+## M12: record and replay (2026-11-24)
+
+- **Built:** `prova/llm/cassette.py` (`request_hash`, `RecordingClient`, `ReplayClient`, `CassetteError`,
+  `CassetteMiss`), the `--record` flag of `bench.run`, `bench/cassettes/dev.jsonl` (17 answers of one real run on
+  the three tasks) and `tests/docker/test_replay_real_tasks.py`. 1212 unit tests, 30 Docker tests.
+- **What replay proves, and what it does not:** given the same answers of the model, the harness (tools, hooks,
+  sandbox, grading) still does the same thing. It says nothing about whether the model would answer better or worse.
+- **A miss is a stop, not a result:** `CassetteMiss` is not an `LLMError`, because the loop ends a run on those and
+  reports it as a run that failed. A request nobody recorded must break the test, and replay never falls back on
+  the API.
+- **The first design would not have worked:** the result of `run_tests` says how long the tests took ("0.6s", pytest's
+  "in 0.03s"), so the next request holds a number that is different every time and every replay is a miss. Found
+  by reading the recorded trajectories before writing the test. Chosen: leave durations out of the hash, only inside
+  a `tool_result`, only the form the tools print (a decimal before `s`, pytest's "(0:01:15)"). A whole number
+  ("120s") is a setting and counts. The cost is that two requests that differ only in a time are one request.
+- **A cassette holds what the model said, so it goes through the redactor before the disk,** and the hash is made
+  on the request before that. A cassette is written once: `--record` refuses a file that exists.
+- **Checked:** 9 mutations of the new code, 8 caught (the other is a word in a message). In the Docker test, rewording
+  the lint note the model sees makes all four tests fail with a `CassetteMiss`; changing `MAX_ITERATIONS` (no change
+  of behaviour) does not.
+- **Second real run:** the same 2 of 3 as the first (t001 not resolved again), $0.20. Two runs agree; that is still
+  not a measure of the agent.
+- **Open:** the cassette is tied to the prompt, the tool descriptions and the hooks: any change of them needs a new
+  recording (about $0.20). Dropping the lint hook ends the Docker tests in an error before they start (the contract
+  most likely); I did not read the message. No trajectory viewer yet (step 4 of the plan); the scheduled CI gate (step 5)
+  is postponed, as the repo has no CI.

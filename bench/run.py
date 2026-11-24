@@ -10,6 +10,7 @@ cost of one turn.
 """
 
 import argparse
+import os
 import secrets
 import shutil
 import subprocess  # noqa: S404 - only to read the commit of the harness, with a list of arguments
@@ -24,10 +25,14 @@ from bench.product import make_agent
 from bench.report import load_results, render
 from bench.runner import run_task
 from bench.task import TaskError, load_task
+from prova.config import Settings
+from prova.harness.redact import Redactor
+from prova.llm.cassette import RecordingClient
+from prova.llm.client import LLMClient, make_client
 
 BENCH = Path(__file__).resolve().parent
 TASKS = BENCH / "tasks"
-Execute = Callable[[list[Path], int], int]  # (task folders, seeds) -> exit code
+Execute = Callable[[list[Path], int, Path | None], int]  # (task folders, seeds, cassette) -> exit code
 
 
 class RunError(Exception):
@@ -56,12 +61,13 @@ def new_run_id(now: datetime) -> str:
     return f"{now:%Y-%m-%dT%H-%M}_{secrets.token_hex(3)}"
 
 
-def _plan(folders: list[Path], seeds: int, ceiling: float) -> str:
+def _plan(folders: list[Path], seeds: int, ceiling: float, record: Path | None) -> str:
     names = "\n".join(f"  - {folder.name}" for folder in folders)
-    return (
+    plan = (
         f"{len(folders)} task(s) x {seeds} seed(s) = {len(folders) * seeds} run(s):\n{names}\n"
         f"the most this can cost: ${ceiling:.2f} (the money limit of each task, for each run)"
     )
+    return plan + (f"\nthe model's answers will be recorded in {record}" if record else "")
 
 
 def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None) -> int:
@@ -69,6 +75,7 @@ def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None)
     parser.add_argument("--split", default="dev")
     parser.add_argument("--task", action="append", default=[], help="a task to run (default: all)")
     parser.add_argument("--seeds", type=_at_least_one, default=1)
+    parser.add_argument("--record", type=Path, help="write the model's answers to this new cassette file")
     parser.add_argument("--confirm", action="store_true", help="really run: calls the API, costs money")
     args = parser.parse_args(argv)
     try:
@@ -77,11 +84,14 @@ def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None)
     except (RunError, TaskError) as e:
         print(f"error: {e}")  # noqa: T201
         return 1
-    print(_plan(folders, args.seeds, ceiling))  # noqa: T201
+    if args.record is not None and args.record.exists():
+        print(f"error: {args.record} already exists: a cassette is written once, never added to")  # noqa: T201
+        return 1
+    print(_plan(folders, args.seeds, ceiling, args.record))  # noqa: T201
     if not args.confirm:
         print("nothing was run. Add --confirm to run it.")  # noqa: T201
         return 0
-    return (execute or _execute)(folders, args.seeds)
+    return (execute or _execute)(folders, args.seeds, args.record)
 
 
 def _at_least_one(text: str) -> int:
@@ -94,7 +104,7 @@ def _at_least_one(text: str) -> int:
 # -- the real run: needs the API and Docker, so it has no unit test; the parts it joins have ----------
 
 
-def _execute(folders: list[Path], seeds: int) -> int:
+def _execute(folders: list[Path], seeds: int, record: Path | None) -> int:
     from prova.app import build_app
     from prova.config import load_settings
     from prova.errors import ContractError, SandboxUnavailableError
@@ -107,7 +117,7 @@ def _execute(folders: list[Path], seeds: int) -> int:
         table = load_price_table(BENCH / "pricing.yaml")
         pricing = table.pricing_for(settings.model)
         agent = make_agent(
-            app=build_app(settings),
+            app=build_app(settings, llm=_llm(settings, record)),
             profiles=load_profiles(root / "permissions.yaml"),
             root=root,
             pricing=pricing,
@@ -142,6 +152,14 @@ def _execute(folders: list[Path], seeds: int) -> int:
         if results.is_file():
             print(f"\nresults: {results}\n\n{render(load_results(results))}")  # noqa: T201
     return 0
+
+
+def _llm(settings: Settings, record: Path | None) -> LLMClient:
+    """The real client, and with `--record` one that also writes down what the model says."""
+    client = make_client(settings)
+    if record is None:
+        return client
+    return RecordingClient(client, record, Redactor.from_environ(os.environ))
 
 
 def _commit(root: Path) -> str | None:

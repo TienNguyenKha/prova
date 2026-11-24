@@ -52,6 +52,7 @@ Update this file at the end of every working session.
 - **M9b** Prompt as code: `prova/prompts/` (`render_system` builds the system prompt from layers and only the tools the run is offered; `render_user_context` puts the task in `<untrusted_issue>`), `TaskEvent.prompt_hash`, the M4/M6/M8b scripts use it. 907 unit tests; real runs with two prompts gave two hashes. Entry in `LEARNINGS.md`.
 - **Coverage floor of the tools:** `[tool.coverage]` in `pyproject.toml` (`source = src/prova/tools`, `fail_under = 100`); `uv run pytest --cov` exits 1 below it. `tools/` is at 100% (592 statements); 8 tests added for the branches that were not run. 916 unit tests. There is no CI yet (M10): until then the check is run by hand.
 - **M10 Benchmark v0** Three tasks (`t001`, `t002`, `t006`) that pass the cross-check, `bench/task.py`, `validate_tasks.py`, price table (`bench/pricing.yaml`, `pricing.py`), budget of a run (`prova/agent/budget.py`), workspace, violations, grading, `runner.py`, `product.py`, `report.py`, and `python -m bench.run` (shows the plan and the ceiling; `--confirm` runs). 1161 unit tests, 26 Docker tests. First real run: 2 of 3 resolved, $0.20, 1 seed (`bench/results/2026-11-24T13-55_8979c5.jsonl`). Entries in `LEARNINGS.md`.
+- **M12 Record/replay (client, cassette and Docker replay test done)** `prova/llm/cassette.py` (`RecordingClient`, `ReplayClient`, durations of tools left out of the request hash), `bench.run --record`, `bench/cassettes/dev.jsonl` and a Docker test that replays the three tasks (same chain of tool calls, same grades, no API). 1212 unit tests, 30 Docker tests. Still open in M12: the trajectory viewer (step 4 of the plan) and the scheduled CI gate (step 5). M12b of the plan (comparison with Claude Code) is a different milestone. Entry in `LEARNINGS.md`.
 - **Act II review** against the anti-pattern checklist (greps + reading): clean except one silent cut in the `whitespace_mismatch` error (fixed, test first, shared `_listed`). 908 unit tests. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
@@ -65,11 +66,12 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- Next milestone: M12 (record/replay + regression gate) needs only M10. M11 is deferred (see Decisions Log and P2).
+- M12 step 4: trajectory viewer in the terminal (each step, latency, cost, hook decisions). M12 step 5 (scheduled CI gate) waits for a CI; M11 is deferred (see Decisions Log and P2).
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
 - Decide about `bench/results/`: commit the `.jsonl` results, ignore `bench/results/trajectories/`.
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
+- When the prompt, a tool description or a hook changes: record the cassette again (`bench.run --record`, about $0.20), or the Docker replay test fails with a `CassetteMiss`.
 - Check `bench/pricing.yaml` against the official price page (it was copied from a cached table of 2026-11-03).
 - Use `ruff check . --no-cache` before a commit (the cache hid 4 errors, now fixed).
 - Check `test_command` of the report (it is trusted today), and decide whether the hook mechanisms should try the hook instead of looking for it.

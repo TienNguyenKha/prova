@@ -76,7 +76,7 @@ def test_without_confirm_it_shows_the_plan_and_the_ceiling_and_spends_nothing(
 ) -> None:
     root = tasks_in(tmp_path, "t001", "t002")
     ran: list[object] = []
-    code = main(["--seeds", "2"], root=root, execute=lambda folders, seeds: ran.append(folders) or 0)
+    code = main(["--seeds", "2"], root=root, execute=lambda folders, seeds, record: ran.append(folders) or 0)
     out = capsys.readouterr().out
     assert code == 0 and ran == []
     assert "t001" in out and "t002" in out and "$2.00" in out and "--confirm" in out
@@ -86,7 +86,7 @@ def test_with_confirm_it_runs_the_selected_tasks_with_the_seeds(tmp_path: Path) 
     root = tasks_in(tmp_path, "t001", "t002")
     got: list[tuple[list[str], int]] = []
 
-    def execute(folders: list[Path], seeds: int) -> int:
+    def execute(folders: list[Path], seeds: int, record: Path | None) -> int:
         got.append(([f.name for f in folders], seeds))
         return 0
 
@@ -97,12 +97,54 @@ def test_with_confirm_it_runs_the_selected_tasks_with_the_seeds(tmp_path: Path) 
 def test_a_seed_count_below_one_is_refused(tmp_path: Path) -> None:
     root = tasks_in(tmp_path, "t001")
     with pytest.raises(SystemExit):
-        main(["--seeds", "0"], root=root, execute=lambda folders, seeds: 0)
+        main(["--seeds", "0"], root=root, execute=lambda folders, seeds, record: 0)
 
 
 def test_an_unknown_task_is_an_error_message_and_a_failing_exit_code(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tasks_in(tmp_path, "t001")
-    assert main(["--task", "t999"], root=root, execute=lambda folders, seeds: 0) == 1
+    assert main(["--task", "t999"], root=root, execute=lambda folders, seeds, record: 0) == 1
     assert "t999" in capsys.readouterr().out
+
+
+# --- recording a cassette ---------------------------------------------------------------------------
+
+
+def test_the_plan_says_where_the_cassette_will_be_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tasks_in(tmp_path, "t001")
+    cassette = tmp_path / "dev.jsonl"
+    main(["--record", str(cassette)], root=root, execute=lambda folders, seeds, record: 0)
+    assert str(cassette) in capsys.readouterr().out
+
+
+def test_with_confirm_the_cassette_path_goes_to_the_run(tmp_path: Path) -> None:
+    root = tasks_in(tmp_path, "t001")
+    got: list[Path | None] = []
+
+    def execute(folders: list[Path], seeds: int, record: Path | None) -> int:
+        got.append(record)
+        return 0
+
+    cassette = tmp_path / "dev.jsonl"
+    assert main(["--confirm", "--record", str(cassette)], root=root, execute=execute) == 0
+    assert got == [cassette]
+    main(["--confirm"], root=root, execute=execute)
+    assert got[-1] is None  # nothing is recorded unless it is asked for
+
+
+def test_a_cassette_that_already_exists_is_refused_and_nothing_runs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tasks_in(tmp_path, "t001")
+    cassette = tmp_path / "dev.jsonl"
+    cassette.write_text("old\n", encoding="utf-8")
+    ran: list[object] = []
+    code = main(
+        ["--confirm", "--record", str(cassette)], root=root,
+        execute=lambda folders, seeds, record: ran.append(1) or 0,
+    )  # fmt: skip
+    assert code == 1 and ran == [] and "dev.jsonl" in capsys.readouterr().out
+    assert cassette.read_text(encoding="utf-8") == "old\n"  # not touched
