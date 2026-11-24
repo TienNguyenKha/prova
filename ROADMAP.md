@@ -51,10 +51,7 @@ Update this file at the end of every working session.
   Table "rule -> mechanism" in `LEARNINGS.md`, with the two rules that are only requests.
 - **M9b** Prompt as code: `prova/prompts/` (`render_system` builds the system prompt from layers and only the tools the run is offered; `render_user_context` puts the task in `<untrusted_issue>`), `TaskEvent.prompt_hash`, the M4/M6/M8b scripts use it. 907 unit tests; real runs with two prompts gave two hashes. Entry in `LEARNINGS.md`.
 - **Coverage floor of the tools:** `[tool.coverage]` in `pyproject.toml` (`source = src/prova/tools`, `fail_under = 100`); `uv run pytest --cov` exits 1 below it. `tools/` is at 100% (592 statements); 8 tests added for the branches that were not run. 916 unit tests. There is no CI yet (M10): until then the check is run by hand.
-- **M10 (in progress)** `bench/task.py`, task `t001_injection_regex`, `bench/validate_tasks.py` (red on the original, green with the patch, stable, patch lines covered). Tasks t002 and t006 done too (3 tasks, all pass the cross-check). Still to do: `runner.py`, `grade.py`, `report.py`. Entry in `LEARNINGS.md`.
-- **M10 budget of a run:** `prova/agent/budget.py` (`Budget`, `Pricing`), `run_agent(budget=...)`, status `budget`. 1007 unit tests. Needs a price table before `max_usd` can be used (see LEARNINGS).
-- **M10 price table:** `bench/pricing.yaml` + `bench/pricing.py`, `Pricing.max_prompt_tokens`. 1022 unit tests. The numbers are from a cached table: check them on the official page before reporting any $ figure.
-- **M10 workspace:** `bench/workspace.py` (`prepare_workspace`, `collect_changes`; no git on the agent's folder, symlinks never followed). 1042 unit tests. Violations done (`bench/violations.py`, `bench/patch.py`). Grading done (`bench/grade.py`; real tasks proved in Docker). Still to do in the runner: the agent run and the JSONL result; then `report.py` and one command for the three tasks.
+- **M10 Benchmark v0** Three tasks (`t001`, `t002`, `t006`) that pass the cross-check, `bench/task.py`, `validate_tasks.py`, price table (`bench/pricing.yaml`, `pricing.py`), budget of a run (`prova/agent/budget.py`), workspace, violations, grading, `runner.py`, `product.py`, `report.py`, and `python -m bench.run` (shows the plan and the ceiling; `--confirm` runs). 1161 unit tests, 26 Docker tests. First real run: 2 of 3 resolved, $0.20, 1 seed (`bench/results/2026-11-24T13-55_8979c5.jsonl`). Entries in `LEARNINGS.md`.
 - **Act II review** against the anti-pattern checklist (greps + reading): clean except one silent cut in the `whitespace_mismatch` error (fixed, test first, shared `_listed`). 908 unit tests. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
@@ -68,6 +65,9 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
+- M11: more tasks (the plan says why 3 are not enough); then 3 seeds per task before any claim (Act III).
+- Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
+- Decide about `bench/results/`: commit the `.jsonl` results, ignore `bench/results/trajectories/`.
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
 - Check `bench/pricing.yaml` against the official price page (it was copied from a cached table of 2026-11-03).

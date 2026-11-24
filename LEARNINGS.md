@@ -984,3 +984,32 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   removed lines left out of the ratio): all caught.
 - **Open:** methods are part of their class for `localization_symbol`; two definitions of one name are merged. The
   runner (the agent run and the JSONL line) is still to write.
+
+## M10: the runner, the report and the first real run (2026-11-24)
+
+- **Built:** `bench/runner.py` (`run_task`, `AgentRun`), `bench/product.py` (`make_agent`, `ProductAgent`),
+  `bench/report.py`, `bench/run.py` (the command). 1161 unit tests.
+- **The agent is a function handed in.** `run_task` only does what must be the same for every agent: a copy of
+  `repo/` without the hidden tests, timing, price, grading, and one line of result. `product.py` is the one place
+  that knows the product (profile `fix`, three hooks, prompt layers, contract). The benchmark measures the
+  product, so the only thing that is not the product's is the budget, which comes from the task.
+- **A line is always written.** A crash is a line with `agent_status: crashed` and an error; a cost that cannot be
+  known (cache tokens, no price) is `None` with the reason in `error`, never 0. A missing line would be read as a
+  result that does not exist.
+- **The contract is checked once, when the agent is made**, so a rule with no mechanism stops the benchmark before
+  it spends anything. `strict=True` stays on: a bug in one of our tools stops the run and shows up as a crash, and is
+  not hidden as a tool error the model sees (found because a mutation survived).
+- **Nothing is spent by default.** `python -m bench.run` shows the tasks and the most the run can cost (the money
+  limit of each task, for each run); only `--confirm` calls the API.
+- **The report does not guess.** A column with a value missing says `n/a` and not a mean of the rest; runs with a
+  violation or an error are counted in `notes`; below 3 seeds it says it cannot compare.
+- **First real run (1 seed, `claude-sonnet-5-5`, $0.20 in all, prices not verified):** t002 and t006 resolved; t001 not.
+  t001: the agent's regex also flags "Do not ignore the instructions printed on the box", so
+  `test_ordinary_text_is_not_flagged` fails: a regression of behaviour the original code had. Its workspace has no
+  tests, so it could not see this, and it said so ("nothing checks it"); the stop hook let it end because no tests
+  were collected. One seed says the pipeline works and nothing about the agent.
+- **Open:** is the issue of t001 enough for someone to know that negated phrases must stay unflagged? Checked
+  nothing yet. `harness_commit` has no test. The agent code runs in the same container as the grading report.
+
+**Question of the plan, for you to answer in your own words:** which hidden test was the hardest to write, and why?
+

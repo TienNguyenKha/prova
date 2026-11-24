@@ -106,7 +106,7 @@ Một lệnh chạy cả 3 task và in bảng kết quả; 3 task đều qua `va
 
 - Test ẩn của task nào khó viết nhất, và vì sao (gợi ý: client tạo lúc import)?
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 
