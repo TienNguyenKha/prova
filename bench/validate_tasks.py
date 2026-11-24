@@ -47,8 +47,8 @@ class ValidationReport:
         return not self.problems
 
 
-class _CannotRun(Exception):
-    """The tests could not be run or left no report. The task is not valid, and the message says why."""
+class CannotRunTests(Exception):
+    """The tests could not be run or left no report, so what they say cannot be known."""
 
 
 def validate(folder: Path, open_sandbox: OpenSandbox, *, runs: int = RUNS) -> ValidationReport:
@@ -72,7 +72,7 @@ def validate(folder: Path, open_sandbox: OpenSandbox, *, runs: int = RUNS) -> Va
             problems = _check(task, open_sandbox, original, patched, runs)
             if not problems:  # measuring what the patch changes means nothing if the patch is not right
                 problems = _check_coverage(task, patch, open_sandbox, patched)
-        except _CannotRun as e:
+        except CannotRunTests as e:
             problems = [str(e)]
     return ValidationReport(task.id, tuple(problems))
 
@@ -83,7 +83,7 @@ def _check(task: Task, open_sandbox: OpenSandbox, original: Path, patched: Path,
     results: dict[str, Outcomes] = {}
     for label, workdir in (("the original code", original), ("the reference patch", patched)):
         with open_sandbox(workdir) as sandbox:
-            attempts = [_run_tests(sandbox, workdir, ids) for _ in range(runs)]
+            attempts = [run_hidden_tests(sandbox, workdir, ids) for _ in range(runs)]
         if any(attempt != attempts[0] for attempt in attempts):
             problems.append(f"the result is not stable on {label}: {_differences(attempts)}")
         results[label] = attempts[0]
@@ -187,7 +187,7 @@ def _measure(sandbox: Sandbox, workdir: Path, ids: tuple[str, ...]) -> dict[str,
     done = sandbox.run(export, timeout_s=TIMEOUT_S)
     if done.timed_out or not report.is_file():
         tail = " | ".join(done.output.strip().splitlines()[-3:])
-        raise _CannotRun(f"coverage left no coverage report (exit code {done.exit_code}): {tail}")
+        raise CannotRunTests(f"coverage left no coverage report (exit code {done.exit_code}): {tail}")
     return json.loads(report.read_text(encoding="utf-8")).get("files", {})
 
 
@@ -212,17 +212,21 @@ def _apply(patch: Path, repo: Path) -> str | None:
     return None if done.returncode == 0 else (done.stderr.strip() or "git apply failed")
 
 
-def _run_tests(sandbox: Sandbox, workdir: Path, ids: tuple[str, ...]) -> Outcomes:
-    report = workdir / REPORT_NAME
+def run_hidden_tests(
+    sandbox: Sandbox, workdir: Path, ids: tuple[str, ...], report_name: str = REPORT_NAME
+) -> Outcomes:
+    """Run the tests `ids` in `workdir` (it has repo/ and hidden_tests/) and say what became of each: pass,
+    fail, skipped or missing. It is read from the junit report that pytest writes under `report_name`."""
+    report = workdir / report_name
     report.unlink(missing_ok=True)
-    junit = f"--junitxml=/work/{REPORT_NAME}"
+    junit = f"--junitxml=/work/{report_name}"
     argv = ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", junit, *ids]
     result = sandbox.run(argv, timeout_s=TIMEOUT_S)
     if result.timed_out:
-        raise _CannotRun(f"pytest did not finish in {TIMEOUT_S} seconds")
+        raise CannotRunTests(f"pytest did not finish in {TIMEOUT_S} seconds")
     if not report.is_file():
         tail = " | ".join(result.output.strip().splitlines()[-3:])
-        raise _CannotRun(f"pytest left no report (exit code {result.exit_code}): {tail}")
+        raise CannotRunTests(f"pytest left no report (exit code {result.exit_code}): {tail}")
     cases = _read_cases(report)
     return {test: _outcome(test, cases) for test in ids}
 

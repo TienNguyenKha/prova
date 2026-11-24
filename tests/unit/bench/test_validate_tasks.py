@@ -64,7 +64,9 @@ class FakePytest:
         state = "FIXED" if "FIXED" in source else "BUGGY"
         cases = self.decide(state, len(self.calls))
         if self.report:
-            (self.workdir / REPORT_NAME).write_text(junit(cases), encoding="utf-8")
+            # Where pytest was told to write the report: the validator and the grader name it differently.
+            name = next(a for a in argv if a.startswith("--junitxml=")).removeprefix("--junitxml=/work/")
+            (self.workdir / name).write_text(junit(cases), encoding="utf-8")
         failed = any(status in ("fail", "error") for _, status in cases)
         return ExecResult(int(failed), "", "", timed_out=False, duration_s=0.1, truncated=False)
 

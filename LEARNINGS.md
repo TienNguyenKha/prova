@@ -959,3 +959,28 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   that was not the code; and one test made two tasks in the same folder. Both were in the tests.
 - **Open:** a test is recognised by its name or folder (`test_*.py`, `*_test.py`, `conftest.py`, `tests/`, `test/`);
   a repo that names its tests otherwise is not covered.
+
+## M10: grading a run (2026-11-24)
+
+- **Built:** `bench/grade.py` (`grade`, `Grade`) and `run_hidden_tests` (now public, with a report name, shared with
+  the validator). 1117 unit tests, 26 docker tests.
+- **What `resolved` means:** every `fail_to_pass` and `pass_to_pass` test passed on a clean copy (the agent's files as
+  `repo/`, the task's tests beside it), none skipped or missing, and no violation. Tests that could not run give an
+  error and no outcomes: never a pass.
+- **The report nobody can plant:** the junit report of the grading run has a random name every time, and the clean
+  copy leaves out `.prova-*`, so a finished report that code of the agent left behind (under the old name or any
+  other) is not read. This stops the naive attempt, not a determined one: code running in the same container could
+  look for any `.xml`. Said in the docstring and here.
+- **Localization by definition, not by name:** `localization_symbol` compares the source that defines a symbol in
+  the original and in the agent's file (AST). Looking for the name in the changed lines would have missed t002,
+  where the fix is inside `resolve_inputs` and no changed line contains that name.
+- **Unknown is not zero:** an unreadable trajectory gives `None` for the number of tool calls and errors, and
+  `recovered` is only defined when there was a tool error.
+- **Proved on the real tasks (Docker):** for t001, t002 and t006 the reference patch is graded `resolved` with
+  `patch_size_ratio` 1.0, and the original code is not.
+- **Checked:** 10 mutations (fixed report name, violations ignored, a test that did not run counted as passed, a
+  skip counted as a pass, decoys carried into the clean copy, the original used instead of the agent's files, an
+  unreadable trajectory counted as zero, `recovered` without errors, a file that does not parse counted as touched,
+  removed lines left out of the ratio): all caught.
+- **Open:** methods are part of their class for `localization_symbol`; two definitions of one name are merged. The
+  runner (the agent run and the JSONL line) is still to write.
