@@ -8,6 +8,7 @@ from typing import Any, Literal, cast
 from anthropic import omit
 from anthropic.types import ContentBlockParam, Message, MessageParam, ToolResultBlockParam
 
+from prova.agent.budget import Budget
 from prova.config import Settings
 from prova.errors import ErrorCode, LLMError
 from prova.harness.hooks import HookEvent, HookKind, HookOutcome, Hooks, run_hooks
@@ -30,7 +31,8 @@ from prova.tools.base import RunContext, ToolResult
 from prova.tools.registry import ToolRegistry
 
 # "unverified": the model said it was done, but the stop hooks did not agree, even after being asked again.
-Status = Literal["done", "unverified", "max_iterations", "max_tokens", "refused", "error"]
+# "budget": the run went over a limit of its Budget (tool calls, seconds or money).
+Status = Literal["done", "unverified", "max_iterations", "max_tokens", "refused", "error", "budget"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +61,7 @@ def run_agent(
     redactor: Redactor | None = None,
     hooks: Hooks | None = None,
     prompt_hash: str | None = None,
+    budget: Budget | None = None,
 ) -> AgentResult:
     """Run the model on `task` until it answers, fails, or has used `max_iterations` calls.
 
@@ -68,7 +71,8 @@ def run_agent(
     `hooks` are rules around the loop (see prova.harness.hooks): they can block a tool, add notes to its
     result, or keep the run going when the model wants to stop. Permissions are not hooks: no hook can
     lift them. `prompt_hash` (see prova.prompts.render) is written into the first line of the log, so a result
-    can be tied to the prompt it ran with.
+    can be tied to the prompt it ran with. A `budget` ends the run with status "budget" when it is over: tool
+    calls are checked before they run, seconds and money between turns (see prova.agent.budget).
     """
     redact = redactor if redactor is not None else Redactor()
     active = hooks if hooks is not None else Hooks()
@@ -76,6 +80,8 @@ def run_agent(
     messages: list[MessageParam] = [{"role": "user", "content": task}]
     offered = tools.to_api_tools(ctx.permissions)
     usage = UsageLog()
+    started_at = clock()
+    tool_calls_made = 0
 
     def log(event: TrajectoryEvent) -> None:
         if trajectory is not None:
@@ -97,6 +103,10 @@ def run_agent(
     log(TaskEvent(task=task, prompt_hash=prompt_hash))  # built even with no log: a bad hash stops here
 
     for turn in range(1, max_iterations + 1):
+        if budget is not None:
+            over = budget.check_time_and_cost(seconds=clock() - started_at, usage=usage)
+            if over is not None:
+                return finish("budget", turn - 1, detail=over)
         log(
             ModelRequestEvent(
                 turn=turn, model=settings.model, messages=len(messages), tools=[t["name"] for t in offered]
@@ -145,6 +155,11 @@ def run_agent(
             messages.append({"role": "user", "content": retry})
             continue
         if reason == "tool_use":
+            asked = sum(1 for block in response.content if block.type == "tool_use")
+            over = budget.check_tool_calls(done=tool_calls_made, asking=asked) if budget is not None else None
+            if over is not None:  # none of this reply's calls runs: never half of a reply
+                return finish("budget", turn, detail=over)
+            tool_calls_made += asked
             answers = _answer_tool_calls(response, tools, ctx, redact, log, active)
             messages.append({"role": "user", "content": answers})
             continue

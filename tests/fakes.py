@@ -18,7 +18,10 @@ from prova.tools.registry import ToolRegistry
 
 
 def build_message(
-    content: list[dict[str, object]], stop_reason: str, stop_details: Mapping[str, object] | None = None
+    content: list[dict[str, object]],
+    stop_reason: str,
+    stop_details: Mapping[str, object] | None = None,
+    usage: tuple[int, int] = (1, 1),
 ) -> Message:
     """Build a canned assistant Message, the way the real API would return it."""
     return Message.model_validate(
@@ -31,26 +34,33 @@ def build_message(
             "stop_reason": stop_reason,
             "stop_sequence": None,
             "stop_details": stop_details,
-            "usage": {"input_tokens": 1, "output_tokens": 1},
+            "usage": {"input_tokens": usage[0], "output_tokens": usage[1]},
         }
     )
 
 
 def text_message(
-    text: str, *, stop_reason: str = "end_turn", stop_details: Mapping[str, object] | None = None
+    text: str,
+    *,
+    stop_reason: str = "end_turn",
+    stop_details: Mapping[str, object] | None = None,
+    usage: tuple[int, int] = (1, 1),
 ) -> Message:
-    return build_message([{"type": "text", "text": text}], stop_reason, stop_details)
+    return build_message([{"type": "text", "text": text}], stop_reason, stop_details, usage)
 
 
 def tool_use_message(
-    *calls: tuple[str, str, Mapping[str, object]], text: str | None = None, stop_reason: str = "tool_use"
+    *calls: tuple[str, str, Mapping[str, object]],
+    text: str | None = None,
+    stop_reason: str = "tool_use",
+    usage: tuple[int, int] = (1, 1),
 ) -> Message:
     """Build a canned assistant Message that calls tools. Each call is (tool_use_id, name, input)."""
     content: list[dict[str, object]] = []
     if text is not None:
         content.append({"type": "text", "text": text})
     content += [{"type": "tool_use", "id": i, "name": n, "input": inp} for i, n, inp in calls]
-    return build_message(content, stop_reason)
+    return build_message(content, stop_reason, usage=usage)
 
 
 # --- A fake LLM client -------------------------------------------------------

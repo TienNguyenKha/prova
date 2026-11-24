@@ -885,3 +885,21 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   must go through) and "handle the fence but stay fail-open" by the test for unreadable replies. This is the kind of
   code anti-pattern #2 says not to write; it is data of the benchmark here, not code of Prova. All three tasks pass
   the cross-check in the container.
+
+## M10: the budget of a run (2026-11-24)
+
+- **Why:** a task has `max_tool_calls`, `max_seconds` and `max_usd`. A benchmark that only writes them down lets a
+  lost run burn real money until `max_iterations`. So the loop enforces them: `run_agent(budget=...)` ends the run
+  with status `budget` (new), and says which limit and by how much.
+- **Decisions:** tool calls are checked before they run, so a reply that would go over runs none of its calls, never
+  half of them. Seconds and money are checked between turns, so a run can end over the limit by the cost of one
+  turn: a fence, not a scale (written in the docstring). A money limit without a price is refused when the budget is
+  built, and cache tokens (no price yet) stop the count with an error instead of being guessed.
+- **Prices are data:** `Pricing` takes dollars per million tokens from the person who runs the benchmark. I wrote no
+  price in the code: they change, and a wrong table makes a wrong `max_usd`. The cost in a result must carry the
+  table it was computed with.
+- **Checked:** 5 mutations (no time/cost check in the loop, the calls being asked ignored, calls not added up across
+  turns, `>=` instead of `>`, output tokens left out of the cost): all caught. One test of mine failed because my own
+  sum was wrong ($6, not $9); the code was right.
+- **Open:** the price table does not exist yet; a turn can still cross a seconds or money limit; the budget is not
+  yet wired to the `budget:` of a task (the runner will do it).
