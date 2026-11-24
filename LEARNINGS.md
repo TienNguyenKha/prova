@@ -872,3 +872,8 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **Open:** hidden tests are run, not mutated (running a line is not checking it; M13b). The junit file is written
   in the sandbox where the agent's code also runs, so the runner must not trust it blindly when it grades. Only one
   of the three tasks exists, and there is no runner, grader or report yet.
+- **t002 (added the same day):** `t002_url_branch_unreachable`, a function whose first `if` swallows the case of
+  the second one. I wrote the faulty code myself instead of copying a file, and made it pure (the camera is a
+  parameter) so the hidden test needs no browser and no network. To see that `pass_to_pass` is strong enough I ran
+  the validator on a wrong but plausible fix (delete the file branch): `fail_to_pass` went green and a
+  `pass_to_pass` test caught it. Both tasks pass the cross-check in the container.
