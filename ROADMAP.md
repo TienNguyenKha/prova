@@ -28,6 +28,10 @@ Update this file at the end of every working session.
   run with a fake `.env` whose trajectory reads with `jq` (`m4_ask_repo.py --bait`). Entry in `LEARNINGS.md`.
 - **M5b** `tool_runner` comparison (`experiments/act2/m5_tool_runner.py`, one run): same tools, SDK loop; the fake
   key leaked into the answer because that loop has no redaction. Entry in `LEARNINGS.md`.
+- **M6** Tools that change code: `read_file` numbers lines, `edit_file` and `create_file` (`tools/edit.py`),
+  `SnapshotStore` (`harness/snapshots.py`), `RunContext.write` and `.snapshots`, four error codes for why an edit
+  did not apply. 466 unit tests, fixture t001 and `experiments/act2/m6_fix_t001.py`: 4 real runs fixed it (1 Sonnet,
+  3 Haiku), 0 of 4 edits failed, rollback not yet seen in a real run. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -42,7 +46,7 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- M6: number the lines of a `read_file` snapshot (in M4 the model could only quote line numbers that `search_code` gave it).
+- M7 sandbox (Docker): the agent still cannot run commands, and the fixture tests run outside any sandbox.
 - Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up) belongs to the caller, so decide it
   when the first real caller (the CLI or a worker) exists.
 
@@ -80,3 +84,7 @@ Update this file at the end of every working session.
 | 2026-11-22 | Secrets are redacted twice: in the tool result before the model sees it, and in the trajectory before it reaches the disk; by shape and by the value of sensitive environment variables | The model must not see a key, and the log must not keep one. The environment is passed in explicitly so the library never reads `os.environ` on its own. |
 | 2026-11-22 | The trajectory is JSONL with `schema_version`, `ts`, `run_id`, `seq`; opened and closed per event; a write failure raises `TrajectoryError` and stops the run; `tool_call` is logged before dispatch | An event is on disk when `write` returns, so a crash cannot lose it. A run that cannot be audited should not continue. |
 | 2026-11-22 | Keep our own loop instead of the SDK `tool_runner` | In one run the SDK loop leaked a secret that was in an ordinary file (no redaction layer) and left no trajectory. The comparison had n=1 per side, so the token difference is not a finding. |
+| 2026-11-24 | `edit_file` has three failure codes (`no_match`, `ambiguous`, `whitespace_mismatch`) and `create_file` adds `already_exists` | The model reads only the message, but the trajectory needs the reason as a field so the distribution of edit failures can be counted. |
+| 2026-11-24 | `RunContext.write` defaults to matching nothing; every write tool checks `resolve_inside`, then `write_paths`, then touches the disk | Fail-closed: a run that was not given write paths cannot write. A path that is not writable must not reveal whether it exists. |
+| 2026-11-24 | One in-memory `SnapshotStore` per run; the first `ensure` wins; `rollback_all` goes on after a failure; the caller decides when to roll back | The copy must be the original, not an earlier edit. Rolling back half is worse than reporting what failed. Whether a failed run keeps partial work is a policy of the caller (the script), not of the loop. |
+| 2026-11-24 | Line numbers in `read_file` use `splitlines()`, like `search_code` | Two tools must number the same line the same way, or the model quotes a line the other tool cannot find. |

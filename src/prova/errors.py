@@ -13,6 +13,11 @@ class ErrorCode(StrEnum):
     TIMEOUT = "timeout"
     TRANSIENT = "transient"  # a failure that may go away by itself (the caller decides whether to try again)
     SAFETY = "safety"  # refused by a safety rule, not by a missing permission
+    # Why an edit did not apply. Three codes, not one, so a trajectory can count the reasons.
+    NO_MATCH = "no_match"  # the text to replace is not in the file
+    AMBIGUOUS = "ambiguous"  # the text to replace is in the file more than once
+    WHITESPACE_MISMATCH = "whitespace_mismatch"  # it would match if spaces and indentation were ignored
+    ALREADY_EXISTS = "already_exists"  # a new file was asked for where one already is
 
 
 class ProvaError(Exception):
@@ -89,6 +94,10 @@ class StructuredError(ProvaError):
 
 class TrajectoryError(ProvaError):
     """The log of a run could not be written. A run that cannot be logged cannot be audited, so it stops."""
+
+
+class SnapshotError(ProvaError):
+    """A change could not be undone, or the snapshot store was used wrongly."""
 
 
 class BudgetExceededError(ProvaError):

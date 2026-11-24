@@ -61,9 +61,27 @@ def test_build_app_registers_the_read_only_tools_in_name_order(settings: Setting
     ]
 
 
-def test_there_is_no_tool_that_can_write_yet(settings: Settings) -> None:
+def test_the_only_tools_that_write_are_create_file_and_edit_file(settings: Settings) -> None:
     app = build_app(settings, llm=FakeLLM())
-    assert app.tools.to_api_tools({Permission.WRITE, Permission.EXEC, Permission.NETWORK}) == []
+    assert [t["name"] for t in app.tools.to_api_tools({Permission.WRITE})] == ["create_file", "edit_file"]
+
+
+def test_there_is_no_tool_that_can_run_commands_or_use_the_network_yet(settings: Settings) -> None:
+    app = build_app(settings, llm=FakeLLM())
+    assert app.tools.to_api_tools({Permission.EXEC, Permission.NETWORK}) == []
+
+
+def test_a_read_only_run_is_not_offered_a_writing_tool_and_cannot_call_one(
+    settings: Settings, tmp_path: Path
+) -> None:
+    app = build_app(settings, llm=FakeLLM())
+    ctx = RunContext(workspace=tmp_path, permissions=frozenset({Permission.READ}))
+
+    offered = [t["name"] for t in app.tools.to_api_tools(ctx.permissions)]
+    result = app.tools.dispatch("create_file", {"path": "x.txt", "content": "hi"}, ctx)
+
+    assert "create_file" not in offered and "edit_file" not in offered
+    assert not result.success and not (tmp_path / "x.txt").exists()
 
 
 def test_the_tool_list_is_identical_every_time(settings: Settings) -> None:

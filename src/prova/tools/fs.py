@@ -14,6 +14,27 @@ DEFAULT_SNAPSHOT_BYTES = 20_000  # how much of a file the model gets to see; the
 DEFAULT_LIST_ENTRIES = 200  # how many directory entries the model gets to see; the cut is always stated
 
 
+def number_lines(text: str, start: int = 1) -> str:
+    """Prefix each line with its number, right-aligned: `  7│ code`. Lines are split like `search_code` does
+    (str.splitlines), so both tools give the same number to the same line. `start` is the first number."""
+    lines = text.splitlines()
+    width = len(str(start + len(lines) - 1))
+    return "\n".join(f"{number:>{width}}│ {line}" for number, line in enumerate(lines, start=start))
+
+
+def decode_text(raw: bytes, path: str, *, final: bool) -> str:
+    """Decode UTF-8 text for a tool, or raise a ToolError the model can read. `final` is true when `raw` is
+    the whole file: with a cut, a character split in two is kept pending instead of failing."""
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    try:
+        text = decoder.decode(raw, final=final)
+    except UnicodeDecodeError:
+        raise ToolError(ErrorCode.INVALID_ARGS, f"{path} is not a UTF-8 text file") from None
+    if "\x00" in text:
+        raise ToolError(ErrorCode.INVALID_ARGS, f"{path} looks like a binary file (has NUL bytes)")
+    return text
+
+
 class ReadFileArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -23,7 +44,9 @@ class ReadFileArgs(BaseModel):
 class ReadFileTool:
     name = "read_file"
     description = (
-        "Read a UTF-8 text file inside the workspace. A long file is cut: the result says how much was shown."
+        "Read a UTF-8 text file inside the workspace. Every line starts with its line number and a bar "
+        "(`12│ code`): the line number is not part of the file, so leave it out when you copy text. "
+        "A long file is cut: the result says how much was shown."
     )
     args_model = ReadFileArgs
     permission = Permission.READ
@@ -49,32 +72,19 @@ class ReadFileTool:
             raise ToolError(ErrorCode.PERMISSION_DENIED, message) from None
 
         truncated = size > self._max_bytes
-        text = self._decode(raw, args.path, final=not truncated)
+        text = decode_text(raw, args.path, final=not truncated)
         data = {"path": args.path, "bytes": size, "truncated": truncated}
 
         if truncated:
             shown = len(text.encode("utf-8"))
             note = f"cut: showing the first {shown} of {size} bytes"
-            snapshot = f"{text}\n[{note}; the rest is not shown]"
+            snapshot = f"{number_lines(text)}\n[{note}; the rest is not shown]"
             return ToolResult.ok(f"read {args.path}: {note}", data=data, snapshot=snapshot)
         if not text:
             return ToolResult.ok(f"read {args.path} (empty file)", data=data)
-        lines = text.count("\n") + (0 if text.endswith("\n") else 1)
+        lines = len(text.splitlines())
         counted = f"{count_noun(lines, 'line', 'lines')}, {count_noun(size, 'byte', 'bytes')}"
-        return ToolResult.ok(f"read {args.path} ({counted})", data=data, snapshot=text)
-
-    @staticmethod
-    def _decode(raw: bytes, path: str, *, final: bool) -> str:
-        # An incremental decoder keeps a character that the cut split in two as pending instead of failing,
-        # but still rejects bytes that are really not UTF-8. `final` is true when we hold the whole file.
-        decoder = codecs.getincrementaldecoder("utf-8")()
-        try:
-            text = decoder.decode(raw, final=final)
-        except UnicodeDecodeError:
-            raise ToolError(ErrorCode.INVALID_ARGS, f"{path} is not a UTF-8 text file") from None
-        if "\x00" in text:
-            raise ToolError(ErrorCode.INVALID_ARGS, f"{path} looks like a binary file (has NUL bytes)")
-        return text
+        return ToolResult.ok(f"read {args.path} ({counted})", data=data, snapshot=number_lines(text))
 
 
 class ListDirArgs(BaseModel):

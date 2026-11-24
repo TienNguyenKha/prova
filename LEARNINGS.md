@@ -466,3 +466,54 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **Decision:** keep our loop. The reasons are the secret redaction, the trajectory, the permission check at
   dispatch and the stated `stop_reason` handling, which are the things this project is about. For a throwaway
   read-only script, `tool_runner` is a good choice.
+
+
+## M6: Tools that change code, and a way back (2026-11-24)
+
+- **Built:** `read_file` numbers its lines (`12│ code`); `edit_file` and `create_file` in `tools/edit.py`;
+  `SnapshotStore` in `harness/snapshots.py`; `RunContext` gained `write` (where a run may write) and `snapshots`.
+  466 unit tests, a self-contained fixture for task t001 (`experiments/act2/fixtures/t001/`) and a real-run script
+  (`experiments/act2/m6_fix_t001.py`).
+- **Decided:**
+  - Line numbers use `splitlines()`, the same as `search_code`, so both tools give one line the same number even
+    when the file has a form feed. A test guards it. The tool description says the numbers are not part of the file.
+  - `edit_file` has three failure reasons with three error codes (`no_match`, `ambiguous`, `whitespace_mismatch`),
+    and `create_file` adds `already_exists`. The model only reads the message; the codes are for the trajectory, so
+    the reasons can be counted with `jq`.
+  - The write path is checked in the same order in both tools: `resolve_inside` (outside, symlink, protected),
+    then `write_paths`, and only then the disk. A path that is not writable does not reveal whether it exists.
+    A run with no `write_paths` can write nothing.
+  - `create_file` opens with `"xb"` (exclusive), so a file that appears between the check and the write is never
+    overwritten. It also refuses to create a protected file such as `.env`.
+  - The snapshot keeps the ORIGINAL (the first `ensure` wins), as bytes, in memory. Directories made for a new file
+    are tracked and removed on rollback only if they are still empty. `rollback_all` goes on after a failure and
+    reports all of them together. When the run should be rolled back is the caller's decision, not the loop's.
+  - `abandon()` exists because a plain rollback after a failed `create_file` could delete a file somebody else made
+    in the meantime: the snapshot would say "this file did not exist".
+- **Real runs** (task t001, one-line regex fix; the agent cannot run commands yet, so the script runs `pytest` after
+  it is done, in a minimal environment without the API key):
+
+  | Model | Calls | Input / output tokens | Writing-tool calls | Tests after | Test file changed |
+  |---|---|---|---|---|---|
+  | sonnet-5-5 | 4 | 9,704 / 866 | 1 x `edit_file: ok` | pass | no |
+  | haiku-5-5 | 4 | 10,454 / 1,337 | 1 x `edit_file: ok` | pass | no |
+  | haiku-5-5 | 4 | 10,733 / 1,555 | 1 x `edit_file: ok` | pass | no |
+  | haiku-5-5 | 4 | 10,945 / 1,675 | 1 x `edit_file: ok` | pass | no |
+
+  All four runs took the same path: search, read both files, one edit, answer. The trajectory shows the model
+  copied `old_str` without the `6│ ` prefix. The cheaper model used about 1.5 to 2 times the output tokens.
+- **Edit failure rate: 0 of 4 calls.** This does not measure what the plan asks for. A one-line edit with no
+  nested indentation and no repeated text is too easy: no run produced `no_match`, `ambiguous` or
+  `whitespace_mismatch`, and the rollback path never ran in a real run (every run ended with "kept the change").
+  Those branches are covered by unit tests only. A real distribution of reasons needs tasks that vary, which is
+  the job of the benchmark in Act III.
+- **Learned:**
+  - I cut `fs.py` in the wrong place while moving a helper and deleted `ListDirTool` with it. The tests for the
+    other file did not notice; a `grep` for the class did. After a refactor that moves code, check that every class
+    is still there, not only that the tests pass.
+  - A check that returned empty twice was wrong both times (a shell variable that did not split). A scan needs a
+    positive control: something it must find.
+  - The agent left a stale comment above the regex it fixed ("ignore all instructions"). The tests pass, but the
+    change is not fully clean: a benchmark that only runs tests will not notice.
+- **Open:** the snapshot is in memory, so a crash loses it; a failure of `rmdir` for a reason other than "not empty"
+  is silent; and the test run is not a sandbox (it has the user's files and network). M7 replaces the last one.

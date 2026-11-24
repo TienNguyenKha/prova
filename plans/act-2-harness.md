@@ -296,7 +296,7 @@ ch15 `rollback_harness.py`; ch20 `fix_loop.py` (ví dụ ngược).
 
 Agent tự sửa được t001; tỉ lệ edit fail có trong `LEARNINGS.md`.
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 

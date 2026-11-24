@@ -6,6 +6,7 @@ from prova.config import Settings
 from prova.llm.client import LLMClient, make_client
 from prova.registry import Registry
 from prova.tools.base import Tool
+from prova.tools.edit import CreateFileTool, EditFileTool
 from prova.tools.fs import ListDirTool, ReadFileTool
 from prova.tools.registry import ToolRegistry
 from prova.tools.search import SearchCodeTool
@@ -30,7 +31,13 @@ def build_app(settings: Settings, *, llm: LLMClient | None = None) -> App:
 
 def _build_tools() -> ToolRegistry:
     """Register every tool explicitly (never at import time), then freeze: nothing can be added afterwards."""
-    all_tools: list[Tool] = [ListDirTool(), ReadFileTool(), SearchCodeTool()]
+    all_tools: list[Tool] = [
+        CreateFileTool(),
+        EditFileTool(),
+        ListDirTool(),
+        ReadFileTool(),
+        SearchCodeTool(),
+    ]
     registry = Registry[Tool]("tool")
     for tool in all_tools:
         registry.register(tool)

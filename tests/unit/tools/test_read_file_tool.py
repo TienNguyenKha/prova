@@ -11,6 +11,7 @@ from prova.registry import Registry
 from prova.tools.base import Permission, RunContext, Tool, ToolResult
 from prova.tools.fs import ReadFileTool
 from prova.tools.registry import ToolRegistry
+from prova.tools.search import SearchCodeTool
 
 
 @pytest.fixture
@@ -45,18 +46,18 @@ def run(root: Path, path: str, *, max_bytes: int = 20_000) -> ToolResult:
 def test_reads_a_file_and_says_how_big_it_is(root: Path) -> None:
     result = run(root, "hello.txt")
     assert result.success
-    assert result.snapshot == "hello\nworld\n"
+    assert result.snapshot == "1│ hello\n2│ world"
     assert "hello.txt" in result.message
     assert "2 lines" in result.message
     assert result.data == {"path": "hello.txt", "bytes": 12, "truncated": False}
 
 
 def test_reads_a_file_in_a_subdirectory(root: Path) -> None:
-    assert run(root, "sub/inner.txt").snapshot == "inner"
+    assert run(root, "sub/inner.txt").snapshot == "1│ inner"
 
 
 def test_absolute_path_inside_the_workspace_is_allowed(root: Path) -> None:
-    assert run(root, str(root / "hello.txt")).snapshot == "hello\nworld\n"
+    assert run(root, str(root / "hello.txt")).snapshot == "1│ hello\n2│ world"
 
 
 def test_an_empty_file_is_a_success_with_no_snapshot(root: Path) -> None:
@@ -76,7 +77,7 @@ def test_a_long_file_is_cut_and_the_result_says_so(root: Path) -> None:
 
     assert result.success
     assert result.snapshot is not None
-    assert result.snapshot.startswith("x" * 100)
+    assert result.snapshot.startswith("1│ " + "x" * 100)
     assert "x" * 101 not in result.snapshot  # nothing beyond the limit leaks through
     assert "cut" in result.snapshot and "100 of 250" in result.snapshot  # the model is told
     assert "cut" in result.message
@@ -86,7 +87,7 @@ def test_a_long_file_is_cut_and_the_result_says_so(root: Path) -> None:
 def test_a_file_exactly_at_the_limit_is_not_cut(root: Path) -> None:
     (root / "exact.txt").write_text("y" * 100, encoding="utf-8")
     result = run(root, "exact.txt", max_bytes=100)
-    assert result.snapshot == "y" * 100
+    assert result.snapshot == "1│ " + "y" * 100
     assert cast(dict[str, Any], result.data)["truncated"] is False
 
 
@@ -96,7 +97,7 @@ def test_cutting_inside_a_multibyte_character_is_not_an_encoding_error(root: Pat
 
     assert result.success
     assert result.snapshot is not None
-    assert result.snapshot.startswith("é" * 50)
+    assert result.snapshot.startswith("1│ " + "é" * 50)
     assert "100 of 200" in result.snapshot  # only the complete characters count as shown
 
 
@@ -194,3 +195,50 @@ def test_unknown_arguments_are_rejected(root: Path) -> None:
     result = make_registry(ReadFileTool()).dispatch("read_file", {"path": "hello.txt", "lines": 5}, ctx)
     assert result.error_code is ErrorCode.INVALID_ARGS
     assert "lines" in result.message
+
+
+# --- Line numbers: the model needs them to quote a place and to edit it ------
+
+
+def test_every_line_is_numbered_from_one(root: Path) -> None:
+    (root / "three.txt").write_text("a\n\nc", encoding="utf-8")  # an empty line, no final newline
+    assert run(root, "three.txt").snapshot == "1│ a\n2│ \n3│ c"
+
+
+def test_numbers_are_right_aligned_to_the_widest_one(root: Path) -> None:
+    (root / "ten.txt").write_text("".join(f"line{n}\n" for n in range(1, 11)), encoding="utf-8")
+    snapshot = run(root, "ten.txt").snapshot
+    assert snapshot is not None
+    lines = snapshot.split("\n")
+    assert lines[0] == " 1│ line1"
+    assert lines[9] == "10│ line10"
+
+
+def test_a_cut_file_keeps_its_numbers_and_the_cut_note(root: Path) -> None:
+    (root / "rows.txt").write_text("".join(f"row{n}\n" for n in range(1, 101)), encoding="utf-8")
+    snapshot = run(root, "rows.txt", max_bytes=30).snapshot
+    assert snapshot is not None
+    assert snapshot.startswith("1│ row1\n2│ row2")
+    assert "cut" in snapshot and "30 of" in snapshot
+
+
+def test_line_numbers_agree_with_search_code_even_with_odd_line_breaks(root: Path) -> None:
+    # str.splitlines() also breaks on form feed; search_code counts that way, so read_file must too.
+    (root / "odd.txt").write_text("first\x0csecond needle\nthird\n", encoding="utf-8")
+    ctx = RunContext(workspace=root, strict=True)
+    registry = Registry[Tool]("tool")
+    registry.register(ReadFileTool())
+    registry.register(SearchCodeTool())
+    registry.freeze()
+    tools = ToolRegistry(registry)
+
+    found = tools.dispatch("search_code", {"pattern": "needle"}, ctx)
+    assert found.snapshot is not None and "odd.txt:2:" in found.snapshot  # the line search_code reports
+
+    read = tools.dispatch("read_file", {"path": "odd.txt"}, ctx).snapshot
+    assert read is not None and "2│ second needle" in read
+
+
+def test_the_description_tells_the_model_the_numbers_are_not_part_of_the_file() -> None:
+    description = ReadFileTool().description
+    assert "line number" in description and "not part of the file" in description
