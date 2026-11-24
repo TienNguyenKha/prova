@@ -1013,3 +1013,14 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 
 **Question of the plan, for you to answer in your own words:** which hidden test was the hardest to write, and why?
 
+
+## M11 (deferred): the statistics helpers that were already written (2026-11-24)
+
+- **Built:** `prova/stats.py` gained `t_critical_95`, `mean_ci95` and `percentile`. M11 as a whole (20+ tasks,
+  dev/heldout, protection of the benchmark) went to the backlog: a benchmark "big enough to trust" is premature
+  before there is something to compare.
+- **Why t and not 1.96:** with 3 seeds there are 2 degrees of freedom and t is 4.303, more than twice 1.96. An
+  interval made with 1.96 would look much tighter than the data allows. The table covers 1 to 20 degrees of freedom
+  and refuses anything else; its 20 values were checked against `scipy` (a temporary environment, not a dependency).
+- **What the interval does not cover:** it is the spread between runs. It says nothing about the choice of tasks.
+- **Checked:** 8 mutations; the one that survived (`p = 100` refused) got its own assertion.

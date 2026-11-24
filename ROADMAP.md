@@ -65,7 +65,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M11: more tasks (the plan says why 3 are not enough); then 3 seeds per task before any claim (Act III).
+- Next milestone: M12 (record/replay + regression gate) needs only M10. M11 is deferred (see Decisions Log and P2).
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
 - Decide about `bench/results/`: commit the `.jsonl` results, ignore `bench/results/trajectories/`.
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
@@ -84,6 +84,8 @@ Update this file at the end of every working session.
 - Act II: ReAct loop, workspace, edit tools, sandbox, hooks, MCP client, `AGENTS.md` contract, versioned prompts (M4-M9b).
 
 ### P2
+
+- **M11 Benchmark v1** (deferred 2026-11-24): 20+ tasks, dev/heldout split, mean ± SEM with a paired comparison, edge-case and contract tests, `bench/PROTECTED`, quality gate. Waits on a real need for a bigger benchmark. Milestones that list it as a dependency: M12b, M13, S7, M21, M23, M27 (decide per milestone whether M10's three tasks are enough or a smaller step of M11 is pulled in first). Done so far: `prova/stats.py` has `mean_ci95`, `t_critical_95`, `percentile`.
 
 - Act III onwards: benchmark, self-correction, security agent (Act V), memory, hardening, operations, self-improvement.
 
@@ -137,3 +139,4 @@ Update this file at the end of every working session.
 | 2026-11-24 | A lint rule in the contract means "ruff runs after every edit", not "ruff is clean" | The lint hook only adds a note, so a rule that said more would be a rule nothing enforces. |
 | 2026-11-24 | The system prompt is built from static layers and only names the tools the run is offered; the task goes in the user turn inside `<untrusted_issue>` | A read-only run must not hear the name of a tool that writes, and text from somebody else must never sit where the model reads facts. |
 | 2026-11-24 | `prompt_hash` is sha256 of the system prompt and the tool definitions, and the `task` event always has the key (`null` = not said) | Two runs of the same task can be told apart by one number (M16); an absent key and a null would mean different things to a reader. |
+| 2026-11-24 | M11 (Benchmark v1) goes to the backlog; M10's three tasks stay the benchmark for now | A benchmark "big enough to trust" is premature before there is something to compare. Pull in only the files a later milestone needs. Cost: milestones that depend on M11 must be checked one by one. |
