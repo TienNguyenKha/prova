@@ -919,3 +919,22 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   that its pattern was found.
 - **Checked:** 4 mutations (`>=` for `>`, the limit not passed on from the table, an unknown model with a default
   price, unknown fields allowed): all caught.
+
+## M10: the workspace of a run and what the agent changed (2026-11-24)
+
+- **Built:** `bench/workspace.py`: `prepare_workspace` (a copy of `repo/` only: no hidden tests, no `task.yaml`, no
+  reference patch) and `collect_changes` (what differs from the original: files, a unified patch, lines added and
+  removed). 42 tests added in this milestone since the last entry (1042 in all).
+- **A decision against the spec, with its reason:** the spec says `git init` in the workspace to take the diff. I do
+  not run git in the agent's folder. The agent's code runs in a sandbox that has the folder mounted, so it can rewrite
+  `.git/config` or a hook, and then the host's `git diff` would run something the agent chose. The comparison is done
+  in Python, against the original `repo/`, and runs nothing.
+- **The same reasoning, three more places:** a symlink is never followed (reading its target could put a file of the
+  host in the patch), a symlinked folder is one entry and is not walked, and a file that is not text or is over 1 MB
+  is listed but not read into the patch (the agent must not be able to fill the memory of the host).
+- **Checked:** 8 mutations; 7 caught. The one that was not caught (do not refuse a workspace that exists) is
+  equivalent: `copytree` refuses it anyway, my check only gives a clearer message.
+- **Mistakes of mine:** a regular expression I used to rewrite `os.symlink(a, b)` into `Path.symlink_to` produced
+  `work / "x".symlink_to(...)`, a call on a string. I found it by grepping the result before running anything.
+- **Open:** the junit report of the grading run is written in the sandbox where the agent's code also runs; the plan
+  is a random name for the report file, which makes it hard to guess, not impossible.

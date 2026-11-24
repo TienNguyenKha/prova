@@ -54,6 +54,7 @@ Update this file at the end of every working session.
 - **M10 (in progress)** `bench/task.py`, task `t001_injection_regex`, `bench/validate_tasks.py` (red on the original, green with the patch, stable, patch lines covered). Tasks t002 and t006 done too (3 tasks, all pass the cross-check). Still to do: `runner.py`, `grade.py`, `report.py`. Entry in `LEARNINGS.md`.
 - **M10 budget of a run:** `prova/agent/budget.py` (`Budget`, `Pricing`), `run_agent(budget=...)`, status `budget`. 1007 unit tests. Needs a price table before `max_usd` can be used (see LEARNINGS).
 - **M10 price table:** `bench/pricing.yaml` + `bench/pricing.py`, `Pricing.max_prompt_tokens`. 1022 unit tests. The numbers are from a cached table: check them on the official page before reporting any $ figure.
+- **M10 workspace:** `bench/workspace.py` (`prepare_workspace`, `collect_changes`; no git on the agent's folder, symlinks never followed). 1042 unit tests. Still to do in the runner: violations, grading, the agent run, the JSONL result.
 - **Act II review** against the anti-pattern checklist (greps + reading): clean except one silent cut in the `whitespace_mismatch` error (fixed, test first, shared `_listed`). 908 unit tests. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
