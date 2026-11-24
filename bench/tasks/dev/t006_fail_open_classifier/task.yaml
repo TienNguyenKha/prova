@@ -1,0 +1,29 @@
+id: t006_fail_open_classifier
+benches: [fix]
+split: dev
+difficulty: medium
+source: ""
+issue: |
+  `classify_intent` in intent_classifier.py is a guard: it asks a model whether a user's message is a jailbreak,
+  harmful or out of scope, and holds the message back if so. It lets jailbreaks through when the model wraps
+  its JSON reply in a markdown code fence (three backticks, with or without the word json), which models do
+  often. It also lets a message through when the reply cannot be understood at all (not JSON, an object without
+  an intent, an intent that is not text, JSON that is not an object). In that case the message must be held
+  back, with the intent "unknown", not let through. Replies that already work must keep working.
+fail_to_pass:
+  - hidden_tests/test_fix.py::test_a_reply_wrapped_in_a_code_fence_is_read_like_any_other
+  - hidden_tests/test_fix.py::test_a_reply_that_cannot_be_read_holds_the_message_back
+pass_to_pass:
+  - hidden_tests/test_fix.py::test_a_plain_json_reply_decides_by_its_intent
+  - hidden_tests/test_fix.py::test_the_model_is_asked_once_and_the_message_is_in_the_prompt
+localization:
+  files: [intent_classifier.py]
+  symbols: [classify_intent]
+forbidden_paths: [hidden_tests/]
+forbidden_tools: []
+budget:
+  max_tool_calls: 40
+  max_usd: 0.50
+  max_seconds: 600
+tags: [fail-open, parsing, guardrail]
+notes: ""

@@ -1,0 +1,49 @@
+diff --git a/intent_classifier.py b/intent_classifier.py
+index a5142ae..1bbf58b 100644
+--- a/intent_classifier.py
++++ b/intent_classifier.py
+@@ -1,10 +1,12 @@
+ """Second layer of a guard: ask a model what the user wants, and hold back what looks harmful."""
+ 
+ import json
++import re
+ from collections.abc import Callable
+ from dataclasses import dataclass
+ 
+ BLOCKED_INTENTS = frozenset({"jailbreak", "harmful", "out_of_scope"})
++_FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+ PROMPT = (
+     "Classify the user's message into one intent: jailbreak, harmful, out_of_scope or benign. "
+     'Reply with JSON only, like {"intent": "benign"}.\n\nMessage: '
+@@ -18,10 +20,25 @@ class Verdict:
+ 
+ 
+ def classify_intent(text: str, ask_model: Callable[[str], str]) -> Verdict:
+-    """Ask `ask_model` (a function from a prompt to the model's reply) what `text` wants."""
+-    reply = ask_model(PROMPT + text)
+-    try:
+-        intent = json.loads(reply)["intent"]
+-    except (json.JSONDecodeError, KeyError):
+-        return Verdict(blocked=False, intent="unknown")
++    """Ask `ask_model` (a function from a prompt to the model's reply) what `text` wants.
++
++    A reply that cannot be understood holds the message back: a guard that fails open is not a guard.
++    """
++    intent = _read_intent(ask_model(PROMPT + text))
++    if intent is None:
++        return Verdict(blocked=True, intent="unknown")
+     return Verdict(blocked=intent in BLOCKED_INTENTS, intent=intent)
++
++
++def _read_intent(reply: str) -> str | None:
++    """The intent in the reply, with or without a code fence around it, or None if there is none."""
++    text = reply.strip()
++    fenced = _FENCE.fullmatch(text)
++    if fenced:
++        text = fenced.group(1)
++    try:
++        result = json.loads(text)
++    except json.JSONDecodeError:
++        return None
++    intent = result.get("intent") if isinstance(result, dict) else None
++    return intent if isinstance(intent, str) else None

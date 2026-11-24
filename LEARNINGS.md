@@ -877,3 +877,11 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   parameter) so the hidden test needs no browser and no network. To see that `pass_to_pass` is strong enough I ran
   the validator on a wrong but plausible fix (delete the file branch): `fail_to_pass` went green and a
   `pass_to_pass` test caught it. Both tasks pass the cross-check in the container.
+- **t006 (added the same day):** `t006_fail_open_classifier`: a guard that calls `json.loads` on the raw reply of a
+  model and lets the message through when that fails. The reply of the model is a parameter (a fake in the hidden
+  tests), so there is no API in the task. The issue names both symptoms (a code fence, and a reply that cannot be
+  read) because the hidden tests check both, and "hold the message back when the reply is unreadable" is a rule the
+  issue has to state. Two wrong fixes were caught: "block everything" by a `pass_to_pass` test (a benign message
+  must go through) and "handle the fence but stay fail-open" by the test for unreadable replies. This is the kind of
+  code anti-pattern #2 says not to write; it is data of the benchmark here, not code of Prova. All three tasks pass
+  the cross-check in the container.
