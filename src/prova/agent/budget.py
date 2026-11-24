@@ -17,6 +17,7 @@ class Pricing:
 
     input_per_mtok: float
     output_per_mtok: float
+    max_prompt_tokens: int | None = None  # the price holds only for prompts up to this size
 
     def __post_init__(self) -> None:
         for name in ("input_per_mtok", "output_per_mtok"):
@@ -24,11 +25,17 @@ class Pricing:
                 raise ValueError(f"the price {name} must be above 0")
 
     def cost(self, usage: UsageLog) -> float:
-        """Dollars spent so far. Cache tokens have no price here: seeing any is an error, not a guess."""
+        """Dollars spent so far. Tokens this price does not cover (cache tokens, or a prompt over
+        `max_prompt_tokens`) are an error, not a guess."""
         for record in usage.records:
             if record.cache_creation_input_tokens or record.cache_read_input_tokens:
                 raise ValueError(
                     f"turn {record.turn} used cache tokens and Pricing has no price for cache tokens"
+                )
+            if self.max_prompt_tokens is not None and record.input_tokens > self.max_prompt_tokens:
+                raise ValueError(
+                    f"turn {record.turn} sent {record.input_tokens} prompt tokens: "
+                    f"the price holds only up to {self.max_prompt_tokens}"
                 )
         spent = (
             usage.total_input_tokens * self.input_per_mtok + usage.total_output_tokens * self.output_per_mtok

@@ -903,3 +903,19 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   sum was wrong ($6, not $9); the code was right.
 - **Open:** the price table does not exist yet; a turn can still cross a seconds or money limit; the budget is not
   yet wired to the `budget:` of a task (the runner will do it).
+
+## M10: the price table (2026-11-24)
+
+- **Built:** `bench/pricing.yaml` (dollars per million tokens, with `as_of` and `source`), `bench/pricing.py`
+  (`load_price_table`, `pricing_for`), and `Pricing.max_prompt_tokens`.
+- **Decisions:** a model that is not in the table is an error and never a default price, so a money limit cannot
+  quietly use a wrong number. The table is loaded strictly (an unknown field is refused). A price that holds only up
+  to a prompt size (Haiku 5.5: 100K tokens, more expensive above) is enforced: a turn above the size stops the count
+  instead of being priced as if it were below.
+- **What is not known:** the numbers come from the table of the `claude-api` skill, cached on 2026-11-03, not from the
+  official price page. The `source` field says so. Check them before any $ figure is reported.
+- **Mistake of mine:** a text replace into `budget.py` did not match (ruff had reformatted the function) and I did not
+  check that it had changed anything. The red test showed it; I read the file and fixed it. A scripted edit must check
+  that its pattern was found.
+- **Checked:** 4 mutations (`>=` for `>`, the limit not passed on from the table, an unknown model with a default
+  price, unknown fields allowed): all caught.

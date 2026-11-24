@@ -53,6 +53,7 @@ Update this file at the end of every working session.
 - **Coverage floor of the tools:** `[tool.coverage]` in `pyproject.toml` (`source = src/prova/tools`, `fail_under = 100`); `uv run pytest --cov` exits 1 below it. `tools/` is at 100% (592 statements); 8 tests added for the branches that were not run. 916 unit tests. There is no CI yet (M10): until then the check is run by hand.
 - **M10 (in progress)** `bench/task.py`, task `t001_injection_regex`, `bench/validate_tasks.py` (red on the original, green with the patch, stable, patch lines covered). Tasks t002 and t006 done too (3 tasks, all pass the cross-check). Still to do: `runner.py`, `grade.py`, `report.py`. Entry in `LEARNINGS.md`.
 - **M10 budget of a run:** `prova/agent/budget.py` (`Budget`, `Pricing`), `run_agent(budget=...)`, status `budget`. 1007 unit tests. Needs a price table before `max_usd` can be used (see LEARNINGS).
+- **M10 price table:** `bench/pricing.yaml` + `bench/pricing.py`, `Pricing.max_prompt_tokens`. 1022 unit tests. The numbers are from a cached table: check them on the official page before reporting any $ figure.
 - **Act II review** against the anti-pattern checklist (greps + reading): clean except one silent cut in the `whitespace_mismatch` error (fixed, test first, shared `_listed`). 908 unit tests. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
@@ -68,6 +69,7 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
+- Check `bench/pricing.yaml` against the official price page (it was copied from a cached table of 2026-11-03).
 - Use `ruff check . --no-cache` before a commit (the cache hid 4 errors, now fixed).
 - Check `test_command` of the report (it is trusted today), and decide whether the hook mechanisms should try the hook instead of looking for it.
 - Decide whether the tests that start real MCP servers (about 20 s of the default run) get the `slow` marker.

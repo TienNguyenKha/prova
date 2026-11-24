@@ -1,0 +1,14 @@
+# What the models cost, in dollars per million tokens. The benchmark computes `max_usd` and `cost_usd` from this.
+# It is data on purpose: prices change, and a result must say which table it was computed with (as_of, source).
+as_of: 2026-11-03
+source: >-
+  Table of the claude-api skill, cached on 2026-11-03. Not read from the official price page: check it there
+  before a number computed from this file is reported anywhere.
+models:
+  claude-sonnet-5-5:
+    input_per_mtok: 2.0
+    output_per_mtok: 10.0
+  claude-haiku-5-5:
+    input_per_mtok: 0.10
+    output_per_mtok: 0.50
+    max_prompt_tokens: 100000  # above this the price is higher ($0.50 / $2.50), and this file does not hold it
