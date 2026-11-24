@@ -49,6 +49,7 @@ Update this file at the end of every working session.
   `SnapshotStore.changed()`, the `FilesListed` stop hook. 874 unit tests; real runs: normal, and two where the task
   asks to change the tests (with and without the contract text: only the permissions stopped it in the second).
   Table "rule -> mechanism" in `LEARNINGS.md`, with the two rules that are only requests.
+- **M9b** Prompt as code: `prova/prompts/` (`render_system` builds the system prompt from layers and only the tools the run is offered; `render_user_context` puts the task in `<untrusted_issue>`), `TaskEvent.prompt_hash`, the M4/M6/M8b scripts use it. 907 unit tests; real runs with two prompts gave two hashes. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -63,7 +64,7 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- M9b prompts as code (next in `plans/act-2-harness.md`): `contract/AGENTS.md` is put into the system prompt by hand in the M6 script; M9b makes it a rendered, hashed, versioned prompt.
+- M10 (next in `plans/act-2-harness.md`).
 - Check `test_command` of the report (it is trusted today), and decide whether the hook mechanisms should try the hook instead of looking for it.
 - Decide whether the tests that start real MCP servers (about 20 s of the default run) get the `slow` marker.
 - Sandbox for MCP servers written by others (needs interactive stdin in `DockerSandbox`); before M21.
@@ -127,3 +128,5 @@ Update this file at the end of every working session.
 | 2026-11-24 | Profiles have `write_deny_paths` (readable, never writable); it wins over `write_paths` and is checked on the resolved path | "Do not edit tests" could not be said with `deny_paths`, which forbids reading too, and the agent has to read the tests. |
 | 2026-11-24 | The final report is the `submit_result` tool with the field names of `output_contract`; a stop hook compares it with `SnapshotStore.changed()` in both directions | Prose cannot be checked. What changed is read from the files, not from what the agent says it changed. |
 | 2026-11-24 | A lint rule in the contract means "ruff runs after every edit", not "ruff is clean" | The lint hook only adds a note, so a rule that said more would be a rule nothing enforces. |
+| 2026-11-24 | The system prompt is built from static layers and only names the tools the run is offered; the task goes in the user turn inside `<untrusted_issue>` | A read-only run must not hear the name of a tool that writes, and text from somebody else must never sit where the model reads facts. |
+| 2026-11-24 | `prompt_hash` is sha256 of the system prompt and the tool definitions, and the `task` event always has the key (`null` = not said) | Two runs of the same task can be told apart by one number (M16); an absent key and a null would mean different things to a reader. |

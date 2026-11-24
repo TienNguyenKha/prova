@@ -26,15 +26,12 @@ from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
 from prova.mcp.config import load_mcp_config
 from prova.mcp.servers import open_mcp_servers
+from prova.prompts.render import render_system, render_user_context
 from prova.tools.base import RunContext
 
 DEFAULT_QUESTION = (
     "Which weakness is the entry about server-side request forgery? Look it up in the knowledge base and "
     "give me its id and a one-line summary."
-)
-SYSTEM = (
-    "You answer questions with the tools you are given. Use the tools before you answer, and say which tool "
-    "the answer came from. If the tools do not have it, say so instead of guessing."
 )
 
 
@@ -72,14 +69,17 @@ def main() -> None:
 
             app = build_app(target, extra_tools=found.adapters)
             ctx = RunContext.from_profile(profile, Path(tmp), strict=True)
+            prompt = render_system(tools=app.tools.to_api_tools(ctx.permissions), contract_text=None)
+            print(f"prompt: layers={'+'.join(prompt.layers)} hash={prompt.hash}")
             print(f"question: {args.question}")
             result = run_agent(
-                args.question,
+                render_user_context(args.question),
                 llm=app.llm,
                 tools=app.tools,
                 ctx=ctx,
                 settings=target,
-                system=SYSTEM,
+                system=prompt.system,
+                prompt_hash=prompt.hash,
                 max_iterations=args.max_iterations,
                 trajectory=writer,
                 redactor=redactor,

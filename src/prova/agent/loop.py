@@ -58,6 +58,7 @@ def run_agent(
     trajectory: TrajectoryWriter | None = None,
     redactor: Redactor | None = None,
     hooks: Hooks | None = None,
+    prompt_hash: str | None = None,
 ) -> AgentResult:
     """Run the model on `task` until it answers, fails, or has used `max_iterations` calls.
 
@@ -66,7 +67,8 @@ def run_agent(
     The `redactor` cleans tool results before the model sees them (the trajectory redacts on its own).
     `hooks` are rules around the loop (see prova.harness.hooks): they can block a tool, add notes to its
     result, or keep the run going when the model wants to stop. Permissions are not hooks: no hook can
-    lift them.
+    lift them. `prompt_hash` (see prova.prompts.render) is written into the first line of the log, so a result
+    can be tied to the prompt it ran with.
     """
     redact = redactor if redactor is not None else Redactor()
     active = hooks if hooks is not None else Hooks()
@@ -92,7 +94,7 @@ def run_agent(
         return AgentResult(status, final_text, iterations, usage, tuple(messages), detail)
 
     # Logged BEFORE the first model call: if the log cannot be written, no model call goes unlogged.
-    log(TaskEvent(task=task))
+    log(TaskEvent(task=task, prompt_hash=prompt_hash))  # built even with no log: a bad hash stops here
 
     for turn in range(1, max_iterations + 1):
         log(

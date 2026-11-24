@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from prova.errors import TrajectoryError
 from prova.harness.redact import Redactor
@@ -23,6 +23,9 @@ class TrajectoryEvent(BaseModel):
 class TaskEvent(TrajectoryEvent):
     type: Literal["task"] = "task"
     task: str
+    # The sha256 of the system prompt and the tools the run was given (see prova.prompts.render), or None
+    # if the run does not say. Anything that is not a sha256 is refused: a hash that is text is a mistake.
+    prompt_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ModelRequestEvent(TrajectoryEvent):

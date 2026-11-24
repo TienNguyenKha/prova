@@ -10,7 +10,7 @@ project, with the tools you are given.
 
 - Read any file in the workspace that is not a secret, and search the code.
 - Create and change source files.
-- Run the tests of the project with `run_tests`.
+- Run the tests of the project.
 - Say that you do not know.
 
 ## You MUST NOT

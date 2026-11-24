@@ -779,3 +779,39 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **Open:** the report's `test_command` is not verified; the hook mechanisms are weak probes; `prompt_only` rules
   are two and stay requests; and every number above is a single run. The contract is checked in the script of this
   milestone; there is no CLI yet to check it in.
+
+## M9b: The prompt is code (2026-11-24)
+
+- **Built:** `prova/prompts/` with `render_system` and `render_user_context`; the static layers as files
+  (`20-instructions.md`, `30-tool-policy.md`) next to a `CHANGELOG.md`; the contract (`contract/AGENTS.md`) as the
+  last layer; `TaskEvent.prompt_hash` and `run_agent(prompt_hash=...)`. The three scripts (M4, M6, M8b) use it and
+  the hand-written `SYSTEM` strings are gone. 907 unit tests.
+- **Three decisions:**
+  - The system prompt only talks about the tools the run is really offered. It is built from the same list the API
+    gets, so a read-only run is never told the name of a tool that writes, and the paragraph for MCP tools is there
+    only if one is offered.
+  - The task is somebody else's text, so it goes in the user turn inside `<untrusted_issue>`, never in `system`
+    (anti-pattern #12). The tag cannot be closed from inside: the `<` of any `untrusted_issue` tag in the text becomes
+    `&lt;`, in any case. Everything is built with replace and join, never `str.format`: braces in a JSON schema or
+    an issue would break it.
+  - The hash is sha256 of the system prompt and the tool definitions, in canonical JSON, and it is written in the
+    `task` event. The key is always there; `null` means "this run did not say", which is different from a missing key.
+- **Real runs** (one run each):
+
+  | Script | Layers | Hash | Result | Input tokens |
+  |---|---|---|---|---|
+  | M6 normal | instructions + tool-policy + contract | `bace7cdc…` | `done`, 6 turns | 28,278 |
+  | M6 `--tweak` (one sentence added) | the same | `a148fdbf…` | `done`, 5 turns | 23,188 |
+  | M4 `review` (cheap model) | instructions + tool-policy | `d68241f6…` | `done`, 4 turns | 15,125 |
+  | M8b MCP (cheap model) | the same, with the MCP paragraph | `0213374d…` | `done`, 2 turns | 5,004 |
+
+  The two M6 runs have two different hashes in two trajectory files, which is the check the plan asked for: the same
+  task with two versions of the prompt can be told apart by one number.
+- **A prediction of mine that was wrong:** I expected fewer input tokens than the 24,783 of M9. The first run had
+  28,278. Input tokens follow the number of turns (each turn sends the whole prompt and history again), and the two
+  runs differ in turns and in prompt at once, so one run each says nothing about whether the new prompt is lighter.
+  Under the Act III rule that needs at least 3 seeds.
+- **Limits that are tested instead of hoped:** the prompt has a size budget (instructions <= 300 words, tool policy
+  <= 600, the `fix` system prompt <= 1100; measured 792 for `fix`, 301 for `review`).
+- **Open:** the hash covers the system prompt and the tools, not the user turn or the model name; the model name is
+  in the trajectory already. Nothing yet compares two hashes (that is M16). The layers are in English only.

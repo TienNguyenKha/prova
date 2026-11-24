@@ -59,7 +59,15 @@ def test_a_record_carries_the_envelope_and_the_payload(tmp_path: Path) -> None:
         "seq": 0,
         "type": "task",
         "task": "find the bug",
+        "prompt_hash": None,  # the run did not say which prompt it used
     }
+
+
+def test_a_task_record_can_carry_the_hash_of_the_prompt(tmp_path: Path) -> None:
+    path = tmp_path / "run.jsonl"
+    writer_at(path).write(TaskEvent(task="find the bug", prompt_hash="b" * 64))
+    (record,) = lines_of(path)
+    assert record["prompt_hash"] == "b" * 64
 
 
 def test_seq_counts_up_from_zero_and_each_event_reads_the_clock_once(tmp_path: Path) -> None:

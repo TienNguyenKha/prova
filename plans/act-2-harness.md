@@ -611,7 +611,7 @@ ch02 (cả 4 file); sách ch2 (bốn lớp, persona, few-shot, versioning, exten
 
 Ba kiểm chứng trên xanh; có thể chạy cùng task với hai phiên bản prompt và phân biệt kết quả bằng hash (dùng ở M16).
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 
