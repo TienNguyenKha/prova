@@ -53,6 +53,7 @@ Update this file at the end of every working session.
 - **Coverage floor of the tools:** `[tool.coverage]` in `pyproject.toml` (`source = src/prova/tools`, `fail_under = 100`); `uv run pytest --cov` exits 1 below it. `tools/` is at 100% (592 statements); 8 tests added for the branches that were not run. 916 unit tests. There is no CI yet (M10): until then the check is run by hand.
 - **M10 Benchmark v0** Three tasks (`t001`, `t002`, `t006`) that pass the cross-check, `bench/task.py`, `validate_tasks.py`, price table (`bench/pricing.yaml`, `pricing.py`), budget of a run (`prova/agent/budget.py`), workspace, violations, grading, `runner.py`, `product.py`, `report.py`, and `python -m bench.run` (shows the plan and the ceiling; `--confirm` runs). 1161 unit tests, 26 Docker tests. First real run: 2 of 3 resolved, $0.20, 1 seed (`bench/results/2026-11-24T13-55_8979c5.jsonl`). Entries in `LEARNINGS.md`.
 - **M12 Record/replay and trajectory viewer** `prova/llm/cassette.py` (`RecordingClient`, `ReplayClient`, durations of tools left out of the request hash), `bench.run --record`, `bench/cassettes/dev.jsonl` and a Docker test that replays the three tasks (same chain of tool calls, same grades, no API). 1212 unit tests, 30 Docker tests. `bench/view.py` shows a trajectory turn by turn (times from timestamps, cost from the price table, control characters removed). The scheduled CI gate (step 5) is in the backlog. M12b of the plan (comparison with Claude Code) is a different milestone. Entry in `LEARNINGS.md`.
+- **M13 (in progress, core done)** `prova/agent/fingerprint.py`, `prova/agent/feedback.py`, `prova/agent/fixloop.py`: fingerprint of a failure, a few lines of feedback from facts, and the loop with its stop rules (done, stuck, attempts, money, unverifiable, crash, open questions) and its record (state file, `escalations.md`). 1300 unit tests; nothing of it has run with a real agent yet. Entry in `LEARNINGS.md`.
 - **Act II review** against the anti-pattern checklist (greps + reading): clean except one silent cut in the `whitespace_mismatch` error (fixed, test first, shared `_listed`). 908 unit tests. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
@@ -65,6 +66,8 @@ Update this file at the end of every working session.
 ## Backlog
 
 ### P0 (next up)
+
+- M13 still to do: read the state file to continue a run; wire the loop to the real agent, a sandbox and the files (spends money); the `Goal` that a model writes from an issue (grill -> goal); the measurement, which needs tasks with a test the agent can see (the three of M10 have none, so the loop would end as `unverifiable`).
 
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
@@ -143,3 +146,4 @@ Update this file at the end of every working session.
 | 2026-11-24 | `prompt_hash` is sha256 of the system prompt and the tool definitions, and the `task` event always has the key (`null` = not said) | Two runs of the same task can be told apart by one number (M16); an absent key and a null would mean different things to a reader. |
 | 2026-11-24 | M11 (Benchmark v1) goes to the backlog; M10's three tasks stay the benchmark for now | A benchmark "big enough to trust" is premature before there is something to compare. Pull in only the files a later milestone needs. Cost: milestones that depend on M11 must be checked one by one. |
 | 2026-11-24 | M12 closed without its scheduled CI gate (step 5) | The repo has no CI, and a gate that compares with a baseline needs the bigger benchmark of M11, which is deferred. The local form exists: the Docker replay test fails when a change of the harness moves the chain of tool calls. |
+| 2026-11-24 | The M13 loop is outside the stop hook, keeps the patch between attempts, and is `stuck` after 2 equal fingerprints in a row | The hook already sends the agent back twice with raw output; the loop adds a fresh context, a record and limits. Keeping the patch lets a partial step count. Both numbers are guesses to be measured. |

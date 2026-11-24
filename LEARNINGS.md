@@ -1071,3 +1071,42 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   with a baseline by SEM needs the bigger benchmark that was put in the backlog (M11). The replay Docker test is
   the local form of "the harness changed and the chain of tool calls moved": it was proven by rewording a hook note.
 
+
+## M13 (in progress): fingerprint, feedback and the core of the loop (2026-11-24)
+
+- **Built:** `prova/agent/fingerprint.py` (`parse_failures`, `failure_fingerprint`), `prova/agent/feedback.py`
+  (`describe_changes`, `Lesson`, `make_lesson`, `structured_feedback`) and `prova/agent/fixloop.py` (`Goal`,
+  `run_fix_loop`). 164 tests in `tests/unit/agent`, 1300 unit tests in all. Not done yet: reading the state back to
+  continue a run, wiring the loop to the real agent and sandbox, the `Goal` made by a model from an issue, and the
+  measurement.
+- **The loop has an inner loop already:** the stop hook `tests_before_stop` sends the agent back up to twice, with the
+  last 3000 characters of the raw pytest output. The M13 loop is outside it and adds what the hook has not: a fresh
+  context each attempt (goal + feedback, not the whole transcript), a fingerprint to see that the same failure is
+  coming back, limits on attempts and money, and a record when it gives up.
+- **No fingerprint is not the fingerprint of nothing:** output that does not list failed tests (a pass, no test
+  found, a crash before the tests, a run that hung) gives `None`, and `None` is never equal to anything. The first idea,
+  a hash of the empty set, would have called two different broken runs "the same failure" and stopped the loop for
+  no reason. Only the last "short test summary" of pytest is believed, so a test that prints `FAILED x - KeyError`
+  cannot fake a failure.
+- **A collection error has no message in the summary:** pytest writes only `ERROR test_b.py`; the kind of error
+  (`ModuleNotFoundError`) is in the `E   ...` line of its own "ERROR collecting" section. Found by running pytest on
+  small samples before writing the tests, not from the plan.
+- **What the fingerprint leaves out, on purpose:** line numbers, times, temporary folders, and the values in a
+  message. The cost: two attempts that fail with `assert 1 == 2` and `assert 5 == 6` count as the same failure, though the
+  second may be nearer. "Stuck" is two attempts in a row with one fingerprint; the number 2 is a guess, to be
+  measured.
+- **Lessons come from the files and from the tests after the change:** what was tried is a diff of the workspace
+  before and after the attempt (`difflib`), not what the model says it did; why it failed is the output of the check run
+  after. A file the agent made is part of it.
+- **A check that shows nothing is never a pass:** pytest exit code 5 (no test collected) ends the loop as
+  `unverifiable`, and a check that timed out is not a pass even if its exit code says 0; what it printed is not believed.
+  On the three tasks of the benchmark this is what would happen: the agent's workspace has no visible test (the hidden
+  ones are the grader's), so this loop has nothing to loop on there. Measuring M13 needs tasks with a test the agent
+  can run.
+- **Money is counted over all the attempts, and a cost that cannot be known stops the loop:** with cache tokens the
+  price is not known, and a limit that cannot be checked is not kept.
+- **Checked:** about 55 mutations over the three files. The ones that survived were real holes in the tests (a
+  check that timed out with exit 0, a file made by the agent, money added up over attempts, the latest lesson compared
+  with itself). One piece of code could never run, a branch for a cost already unknown, and was removed.
+- **Open:** the loop's `read_files` and `verify` are only fakes so far. Whether to keep the patch between attempts
+  or roll it back was decided as "keep" without a measurement.
