@@ -938,3 +938,24 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   `work / "x".symlink_to(...)`, a call on a string. I found it by grepping the result before running anything.
 - **Open:** the junit report of the grading run is written in the sandbox where the agent's code also runs; the plan
   is a random name for the report file, which makes it hard to guess, not impossible.
+
+## M10: violations, and a patch reader shared by two modules (2026-11-24)
+
+- **Built:** `bench/patch.py` (`parse_patch`: the lines each file got and lost, numbered as in the new file) and
+  `bench/violations.py` (`find_violations`). `changed_lines` of the validator now uses `parse_patch`, so there is one
+  reader of patches and not two. 1093 unit tests.
+- **Two kinds of check, and the difference matters:** a changed file under a forbidden path and a call of a forbidden
+  tool are exact. The rest (a test skipped, a test function removed, code that looks for pytest or for
+  `hidden_tests`) is a pattern on the added or removed lines: a heuristic that code which hides what it does gets past.
+  The protection that does not depend on patterns is that the hidden tests run on a clean copy and a skipped test is
+  not a pass. The violations report what they can see, and say so in their docstring.
+- **Fail-closed:** a trajectory that cannot be read (missing, not JSON, a tool call with no name), or a task that
+  forbids tools with no trajectory at all, is `unverifiable`, never clean. A denied call of a forbidden tool still
+  counts: the agent tried, and the detail says the decision.
+- **Checked:** 10 mutations; 9 caught at once. The one that was not (matching a folder with a bare `startswith`, so
+  that `tests_extra/a.py` is "in" `tests/`) showed that my look-alike test used `mytests/`, which does not start with
+  `tests`. Added `tests_extra/`, `tests.py`, `testsuite/`.
+- **Mistakes of mine:** the fixture task I reuse has `tests/` among its forbidden paths, so 3 tests failed for a reason
+  that was not the code; and one test made two tasks in the same folder. Both were in the tests.
+- **Open:** a test is recognised by its name or folder (`test_*.py`, `*_test.py`, `conftest.py`, `tests/`, `test/`);
+  a repo that names its tests otherwise is not covered.

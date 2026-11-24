@@ -12,7 +12,6 @@ Run one or more tasks:  uv run python -m bench.validate_tasks [task folder ...] 
 """
 
 import json
-import re
 import shutil
 import subprocess  # noqa: S404 - only to run `git apply` on the reference patch, with a list of arguments
 import sys
@@ -24,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from bench.patch import parse_patch
 from bench.task import Task, TaskError, load_task
 from prova.sandbox.base import Sandbox
 
@@ -118,40 +118,14 @@ def _differences(attempts: list[Outcomes]) -> str:
 
 # -- step 3: do the hidden tests run what the patch adds ---------------------------------------------
 
-_HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
-
 
 def changed_lines(patch: str) -> dict[str, set[int]]:
     """The lines a unified diff adds, as numbers in the patched file, for each file that gets any."""
-    added: dict[str, set[int]] = {}
-    path: str | None = None
-    lines = iter(patch.splitlines())
-    for line in lines:
-        if line.startswith("+++ "):
-            name = line[4:].split("\t")[0]
-            path = None if name == "/dev/null" else name.removeprefix("b/")
-            continue
-        header = _HUNK.match(line)
-        if header is None:
-            continue
-        old_left = int(header.group(1) or 1)
-        new_no, new_left = int(header.group(2)), int(header.group(3) or 1)
-        while old_left > 0 or new_left > 0:  # the counts of the header say where the hunk ends
-            body = next(lines, None)
-            if body is None or body.startswith("\\"):
-                continue
-            kind = body[:1]
-            if kind == "-":
-                old_left -= 1
-                continue
-            new_left -= 1
-            if kind == "+":
-                if path is not None:
-                    added.setdefault(path, set()).add(new_no)
-            else:
-                old_left -= 1  # a context line, with or without its leading space
-            new_no += 1
-    return added
+    return {
+        path: {number for number, _ in found.added}
+        for path, found in parse_patch(patch).items()
+        if found.added
+    }
 
 
 def _check_coverage(task: Task, patch: Path, open_sandbox: OpenSandbox, patched: Path) -> list[str]:
