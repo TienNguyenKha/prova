@@ -1,0 +1,4 @@
+# What the sandbox image carries. requirements.txt is generated from this file (see the Dockerfile).
+pytest
+ruff
+coverage

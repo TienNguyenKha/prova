@@ -9,6 +9,7 @@ from prova.tools.base import Tool
 from prova.tools.edit import CreateFileTool, EditFileTool
 from prova.tools.fs import ListDirTool, ReadFileTool
 from prova.tools.registry import ToolRegistry
+from prova.tools.run_tests import RunTestsTool
 from prova.tools.search import SearchCodeTool
 
 
@@ -36,6 +37,7 @@ def _build_tools() -> ToolRegistry:
         EditFileTool(),
         ListDirTool(),
         ReadFileTool(),
+        RunTestsTool(),
         SearchCodeTool(),
     ]
     registry = Registry[Tool]("tool")

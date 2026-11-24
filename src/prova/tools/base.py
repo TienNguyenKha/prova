@@ -12,6 +12,7 @@ from prova.errors import ErrorCode
 from prova.harness.patterns import PathMatcher
 from prova.harness.permissions import DEFAULT_DENY_PATHS, Permission, Profile
 from prova.harness.snapshots import SnapshotStore
+from prova.sandbox.base import Sandbox
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,16 +29,22 @@ class RunContext:
     write: PathMatcher = field(default_factory=lambda: PathMatcher(()))
     # The originals of the files this run changed, so the changes can be undone. One store per run.
     snapshots: SnapshotStore = field(default_factory=SnapshotStore)
+    # Where commands run. None means this run has no sandbox, and then no command runs at all.
+    sandbox: Sandbox | None = None
 
     @classmethod
-    def from_profile(cls, profile: Profile, workspace: Path, *, strict: bool = False) -> Self:
-        """A context for a run in `workspace` under `profile`: its permissions and its deny-list."""
+    def from_profile(
+        cls, profile: Profile, workspace: Path, *, strict: bool = False, sandbox: Sandbox | None = None
+    ) -> Self:
+        """A context for a run in `workspace` under `profile`: its permissions, deny-list and write paths.
+        Without a `sandbox`, no command can run, whatever the profile allows."""
         return cls(
             workspace=workspace,
             strict=strict,
             permissions=profile.allow,
             deny=PathMatcher(profile.denied_paths),
             write=PathMatcher(profile.write_paths),
+            sandbox=sandbox,
         )
 
 

@@ -32,6 +32,10 @@ Update this file at the end of every working session.
   `SnapshotStore` (`harness/snapshots.py`), `RunContext.write` and `.snapshots`, four error codes for why an edit
   did not apply. 466 unit tests, fixture t001 and `experiments/act2/m6_fix_t001.py`: 4 real runs fixed it (1 Sonnet,
   3 Haiku), 0 of 4 edits failed, rollback not yet seen in a real run. Entry in `LEARNINGS.md`.
+- **M7** Sandbox: `Sandbox` Protocol and `ExecResult`, `DockerSandbox` (no network, no root, read-only root file
+  system, limits on CPU, memory and processes), `run_tests` tool (permission `exec`), pinned image in
+  `docker/sandbox/`. 526 unit tests and 18 Docker tests; the plan's table ran for real. The agent fixed t001 and
+  ran the tests itself in the sandbox (one real run). Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -46,7 +50,7 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- M7 sandbox (Docker): the agent still cannot run commands, and the fixture tests run outside any sandbox.
+- M8 hooks (next in `plans/act-2-harness.md`).
 - Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up) belongs to the caller, so decide it
   when the first real caller (the CLI or a worker) exists.
 
@@ -88,3 +92,7 @@ Update this file at the end of every working session.
 | 2026-11-24 | `RunContext.write` defaults to matching nothing; every write tool checks `resolve_inside`, then `write_paths`, then touches the disk | Fail-closed: a run that was not given write paths cannot write. A path that is not writable must not reveal whether it exists. |
 | 2026-11-24 | One in-memory `SnapshotStore` per run; the first `ensure` wins; `rollback_all` goes on after a failure; the caller decides when to roll back | The copy must be the original, not an earlier edit. Rolling back half is worse than reporting what failed. Whether a failed run keeps partial work is a policy of the caller (the script), not of the loop. |
 | 2026-11-24 | Line numbers in `read_file` use `splitlines()`, like `search_code` | Two tools must number the same line the same way, or the model quotes a line the other tool cannot find. |
+| 2026-11-24 | One container per command, `docker run --rm`, with `--network none`, `--read-only`, a 64 MB `noexec` `/tmp`, no root, all capabilities dropped; no fallback to the host | Nothing carries over between commands, and a command can only change the workspace. A missing Docker is an error, never a reason to run on the host. |
+| 2026-11-24 | `run_tests` has a fixed command; the model gives only a `target`, passed after `--` | pytest options are a way to run other code or leave the workspace (`-p`, `--rootdir`). A fixed command needs no allowlist of arguments. |
+| 2026-11-24 | A failing test run is a successful tool call that says "tests FAILED"; an unexpected exit code or a timeout is an error | Red tests are what the model needs to read, not a broken tool; the message and `passed: false` keep it from looking like a pass. |
+| 2026-11-24 | The sandbox image is pinned by base digest and by package hash (`--require-hashes`); only python, pytest, ruff and coverage for now | A tag can be moved and a package can be replaced, so both are pinned. bandit and semgrep are heavy and wait for Act V. |

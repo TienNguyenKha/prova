@@ -517,3 +517,64 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
     change is not fully clean: a benchmark that only runs tests will not notice.
 - **Open:** the snapshot is in memory, so a crash loses it; a failure of `rmdir` for a reason other than "not empty"
   is silent; and the test run is not a sandbox (it has the user's files and network). M7 replaces the last one.
+
+
+## M7: A sandbox that can be swapped (2026-11-24)
+
+- **Built:** `sandbox/base.py` (`ExecResult`, the `Sandbox` Protocol), `sandbox/docker.py` (`DockerSandbox`),
+  `tools/run_tests.py` (`RunTestsTool`, permission `exec`), `docker/sandbox/` (a `Dockerfile` and pinned
+  requirements), `RunContext.sandbox`. 526 unit tests that need no Docker, plus 18 that run real containers
+  (`uv run pytest -m docker`).
+- **The plan's table, run for real in containers:**
+
+  | Case | Result |
+  |---|---|
+  | `while True: pass` | cut at the timeout, container removed |
+  | small fork bomb | stopped by `--pids-limit` (the fork fails) |
+  | connect to the internet | fails: no network |
+  | write `/etc/passwd`, `/usr`, `/` | fails |
+  | `["echo", "a", "&&", "touch", "/work/pwned"]` | `&&` is just an argument, no `pwned` file |
+  | Docker not running | `SandboxUnavailableError`, nothing runs on the host |
+
+  Also checked: the command is not root, the host's environment (including `ANTHROPIC_API_KEY`) does not reach
+  the container, files outside the workspace are not visible, `/tmp` is writable but nothing in it can be
+  executed, and no container is left behind after any test.
+- **Decided:**
+  - One container per command (`docker run --rm`), so nothing carries over between commands. `close()` only has
+    to kill a command that is still running.
+  - Every isolation flag has its own unit test on the command that is built, so a removed `--network none` is
+    caught without Docker. I also checked that the network test can fail: with the flag deleted in a scratch
+    script, the same code printed `CONNECTED`.
+  - The arguments of the command come after the image name and are never joined into a string: a word that
+    looks like a Docker option (`--privileged`) stays a plain argument. The workspace is passed with `--mount`
+    (not `-v`), and a path with a comma is refused because it would end the option early.
+  - `--read-only` with a small `/tmp` (64 MB, `noexec`): the plan asks that writing outside `/work` fails, and
+    a non-root user alone would still be able to write to `/tmp`.
+  - The model cannot choose pytest's options. `run_tests` has a fixed command and an optional `target` that goes
+    after `--` and passes through `resolve_inside`, so `-p evil` is a missing file, not an option.
+  - A failing test run is a successful tool call with "tests FAILED" in the message and `passed: false` in the
+    data; only an unexpected exit code (for example 137) or a timeout is an error. This avoids a failure that
+    looks like a success without treating "the tests are red" as a broken tool.
+  - Without a sandbox in the context, or without Docker, `run_tests` refuses and says nothing was run. There is
+    no fallback to the host, ever.
+  - The image is pinned twice: the base by digest (not by tag) and the packages by hash (`pip install
+    --require-hashes`), generated with `uv pip compile --generate-hashes`. Only python, pytest, ruff and coverage
+    are in it; bandit and semgrep wait for Act V.
+- **Real run** (t001, Sonnet, one run): search, read both files, `edit_file` (ok), `run_tests` (passed in 0.6 s),
+  answer. 10,488 input and 790 output tokens. The script then ran the tests itself in the sandbox: 12 of 12
+  passed, the test file was not changed, no container was left. The agent said "all 12 tests pass" and this time
+  it had run them (in M6 it said it had not), and the claim was checked, not trusted.
+- **Learned:**
+  - My worry that user 1000 could not write to a macOS bind mount did not happen.
+  - Removing a container is asynchronous after it stops, so a test that checks for leftovers right away would be
+    flaky. `run` waits (up to 10 s) until the container is gone.
+  - The first `docker run` can fail because the container does not exist yet when we try to kill it after a
+    timeout. `_kill` retries a few times.
+  - `uv` read a stale `VIRTUAL_ENV` that points into the old project's environment; `env -u VIRTUAL_ENV` fixed it
+    for that one command.
+- **Not tested, so not claimed:** the memory limit and the CPU limit are in the command (a unit test checks the
+  flags) but no test shows a memory hog being killed; and slopsquatting protection (plan step 7) has nothing to
+  protect yet, because there is no tool that installs packages and the network is off.
+- **Open:** the local image tag `prova-sandbox:1` is not bit-for-bit reproducible (build timestamps); a run
+  waits for each container to disappear, which costs one more `docker ps` per command; and the isolation is
+  as strong as Docker's, with nothing of ours underneath.

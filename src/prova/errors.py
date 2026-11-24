@@ -60,6 +60,11 @@ class SandboxError(ProvaError):
     """Error coming from the sandbox."""
 
 
+class SandboxUnavailableError(SandboxError):
+    """The sandbox cannot run at all (for example Docker is not running). Nothing was executed, and nothing
+    is ever executed on the host instead."""
+
+
 class LLMError(ProvaError):
     """A call to the model failed. Always raised with `from e`, so the SDK exception stays as `__cause__`."""
 

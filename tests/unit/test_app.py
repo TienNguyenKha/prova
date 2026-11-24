@@ -66,9 +66,23 @@ def test_the_only_tools_that_write_are_create_file_and_edit_file(settings: Setti
     assert [t["name"] for t in app.tools.to_api_tools({Permission.WRITE})] == ["create_file", "edit_file"]
 
 
-def test_there_is_no_tool_that_can_run_commands_or_use_the_network_yet(settings: Settings) -> None:
+def test_the_only_tool_that_runs_commands_is_run_tests_and_none_uses_the_network(settings: Settings) -> None:
     app = build_app(settings, llm=FakeLLM())
-    assert app.tools.to_api_tools({Permission.EXEC, Permission.NETWORK}) == []
+    assert [t["name"] for t in app.tools.to_api_tools({Permission.EXEC})] == ["run_tests"]
+    assert app.tools.to_api_tools({Permission.NETWORK}) == []
+
+
+def test_run_tests_is_not_offered_to_a_run_without_the_exec_permission(settings: Settings) -> None:
+    app = build_app(settings, llm=FakeLLM())
+    offered = [t["name"] for t in app.tools.to_api_tools({Permission.READ, Permission.WRITE})]
+    assert "run_tests" not in offered
+
+
+def test_a_run_with_exec_but_no_sandbox_cannot_run_the_tests(settings: Settings, tmp_path: Path) -> None:
+    app = build_app(settings, llm=FakeLLM())
+    ctx = RunContext(workspace=tmp_path, permissions=frozenset({Permission.EXEC}))  # no sandbox on purpose
+    result = app.tools.dispatch("run_tests", {}, ctx)
+    assert not result.success and "sandbox" in result.message
 
 
 def test_a_read_only_run_is_not_offered_a_writing_tool_and_cannot_call_one(

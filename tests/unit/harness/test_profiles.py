@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 from prova.errors import ConfigError, ErrorCode
-from prova.harness.permissions import Permission, get_profile, load_profiles
+from prova.harness.permissions import Permission, Profile, get_profile, load_profiles
+from prova.sandbox.base import ExecResult
 from prova.tools.base import RunContext
 from tests.fakes import WriterTool, make_tool_registry
 
@@ -141,3 +142,21 @@ def test_a_yaml_file_cannot_make_us_run_code(tmp_path: Path) -> None:
     with pytest.raises(ConfigError):
         load_profiles(write(tmp_path, text))
     assert not marker.exists()  # safe_load refused the tag, nothing ran
+
+
+def test_a_context_from_a_profile_has_no_sandbox_unless_one_is_given(tmp_path: Path) -> None:
+    profile = Profile(allow=frozenset({Permission.READ, Permission.EXEC}))
+
+    assert RunContext.from_profile(profile, tmp_path).sandbox is None  # no sandbox: no command runs
+
+    class Marker:
+        def run(
+            self, argv: list[str], *, timeout_s: float, cwd: str = "/work", on_output: object = None
+        ) -> ExecResult:
+            raise AssertionError("not called")
+
+        def close(self) -> None:
+            pass
+
+    sandbox = Marker()
+    assert RunContext.from_profile(profile, tmp_path, sandbox=sandbox).sandbox is sandbox

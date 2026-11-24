@@ -1,12 +1,12 @@
-"""M6: the agent fixes a bug in a copy of the t001 fixture, then we run the fixture's tests ourselves.
+"""M6/M7: the agent fixes a bug in a copy of the t001 fixture and runs the tests in a Docker sandbox.
 
 Run by hand (a few model calls, more than the read-only M4 run because it edits):
   uv run python experiments/act2/m6_fix_t001.py                 # main model
   uv run python experiments/act2/m6_fix_t001.py --model cheap
 
-The agent has no tool that runs commands yet (that needs the sandbox, M7), so it cannot run the tests. This
-script runs them after the agent is done, in a copy, with a minimal environment so that the code the agent
-edited cannot read the API key. This is NOT a sandbox: the process still has the user's files and network.
+The agent has the run_tests tool, which runs pytest in the sandbox (no network, only the workspace mounted).
+After the agent is done, this script runs the tests itself in the same kind of sandbox: it does not take the
+agent's word for it. Needs Docker and the image:  docker build -t prova-sandbox:1 docker/sandbox
 If the run does not end well (tests red, tests changed, or the agent did not finish), it is rolled back.
 """
 
@@ -16,8 +16,6 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
-import sys
 import tempfile
 import uuid
 from collections import Counter
@@ -25,11 +23,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from prova.agent.loop import AgentResult, run_agent
-from prova.app import build_app
-from prova.config import load_settings
-from prova.harness.permissions import get_profile, load_profiles
+from prova.app import App, build_app
+from prova.config import Settings, load_settings
+from prova.errors import SandboxUnavailableError
+from prova.harness.permissions import Profile, get_profile, load_profiles
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
+from prova.sandbox.base import Sandbox
+from prova.sandbox.docker import DockerSandbox
 from prova.tools.base import RunContext
 
 FIXTURE = Path("experiments/act2/fixtures/t001")
@@ -38,8 +39,8 @@ TEST_FILE = "test_injection_guard.py"
 TASK = (
     "The function `looks_like_injection` in injection_guard.py misses some attempts to override an "
     "assistant's instructions, for example 'Ignore all previous instructions'. Fix the bug so that every "
-    "test in test_injection_guard.py passes. Do not change the tests. You cannot run the tests, so read "
-    "them and check your change by reading."
+    "test in test_injection_guard.py passes. Do not change the tests. You can run them with the "
+    "run_tests tool."
 )
 SYSTEM = (
     "You fix bugs in the code in the workspace. Read the files before you change anything. Change code "
@@ -47,7 +48,7 @@ SYSTEM = (
     "are not part of the file. If an edit fails, read the error: it says what to do. When you are done, "
     "say what you changed."
 )
-EDIT_TOOLS = ("edit_file", "create_file")
+COUNTED_TOOLS = ("edit_file", "create_file", "run_tests")
 
 
 class UtcClock:
@@ -59,32 +60,23 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def run_tests(workspace: Path) -> tuple[bool, str]:
-    """Run the fixture's tests in `workspace`. Returns (passed, the last lines of the output)."""
-    minimal_env = {"PATH": os.environ.get("PATH", ""), "PYTHONDONTWRITEBYTECODE": "1"}  # no API key in here
-    try:
-        done = subprocess.run(  # noqa: S603 - a list built here: no shell, nothing from the model
-            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"],
-            cwd=workspace,
-            env=minimal_env,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return False, "the tests did not finish in 60 seconds"
-    tail = "\n".join((done.stdout + done.stderr).strip().splitlines()[-6:])
-    return done.returncode == 0, tail
+def run_tests(sandbox: Sandbox) -> tuple[bool, str]:
+    """Run the fixture's tests in the sandbox. Returns (passed, the last lines of the output)."""
+    result = sandbox.run(["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"], timeout_s=60)
+    tail = "\n".join(result.output.strip().splitlines()[-6:])
+    return (result.exit_code == 0 and not result.timed_out), tail
 
 
 def edit_outcomes(log_path: Path) -> Counter[str]:
-    """Count how each call of a writing tool ended, from the trajectory: 'ok' or its error code."""
+    """Count how each call of a tool that changes or runs things ended, from the trajectory."""
     outcomes: Counter[str] = Counter()
     for line in log_path.read_text(encoding="utf-8").splitlines():
         event = json.loads(line)
-        if event["type"] == "tool_result" and event["tool"] in EDIT_TOOLS:
-            outcomes[f"{event['tool']}: {event['error_code'] or 'ok'}"] += 1
+        if event["type"] == "tool_result" and event["tool"] in COUNTED_TOOLS:
+            # run_tests succeeds as a tool even when the tests fail, so say what the tests did instead
+            is_tests = event["tool"] == "run_tests"
+            what = event["message"].split(" (")[0] if is_tests else event["error_code"] or "ok"
+            outcomes[f"{event['tool']}: {what}"] += 1
     return outcomes
 
 
@@ -92,6 +84,53 @@ def show_diff(before: str, after: str) -> None:
     names = (f"{SOURCE_FILE} (before)", f"{SOURCE_FILE} (after)")
     diff = difflib.unified_diff(before.splitlines(), after.splitlines(), *names, lineterm="")
     print("\n".join(diff) or "(the file is unchanged)")
+
+
+def run_one(  # noqa: PLR0913 - a script: everything it needs is passed in, nothing is global
+    args: argparse.Namespace,
+    target: Settings,
+    model: str,
+    app: App,
+    profile: Profile,
+    workspace: Path,
+    sandbox: Sandbox,
+    log_path: Path,
+    writer: TrajectoryWriter,
+    redactor: Redactor,
+) -> None:
+    source, tests = workspace / SOURCE_FILE, workspace / TEST_FILE
+    source_before, tests_hash = source.read_text(encoding="utf-8"), sha256(tests)
+
+    before_ok, _ = run_tests(sandbox)
+    print(f"model={model} profile=fix")
+    print(f"before the agent: tests {'pass' if before_ok else 'FAIL'} (expected: FAIL)")
+
+    ctx = RunContext.from_profile(profile, workspace, strict=True, sandbox=sandbox)
+    result = run_agent(
+        TASK,
+        llm=app.llm,
+        tools=app.tools,
+        ctx=ctx,
+        settings=target,
+        system=SYSTEM,
+        max_iterations=args.max_iterations,
+        trajectory=writer,
+        redactor=redactor,
+    )
+
+    source_after = source.read_text(encoding="utf-8")
+    tests_changed = sha256(tests) != tests_hash
+    passed, tail = run_tests(sandbox)  # our own run: the agent's word is not enough
+
+    report(result, log_path, source_before, source_after, tests_changed, passed, tail)
+
+    if result.status == "done" and passed and not tests_changed:
+        ctx.snapshots.discard()
+        print("\nkept the change.")
+    else:
+        ctx.snapshots.rollback_all()
+        restored = source.read_text(encoding="utf-8") == source_before and sha256(tests) == tests_hash
+        print(f"\nrolled back. files are back to the original: {restored}")
 
 
 def main() -> None:
@@ -115,39 +154,14 @@ def main() -> None:
         workspace = Path(tmp)
         skip = shutil.ignore_patterns("__pycache__")
         shutil.copytree(settings.project_root / FIXTURE, workspace, dirs_exist_ok=True, ignore=skip)
-        source, tests = workspace / SOURCE_FILE, workspace / TEST_FILE
-        source_before, tests_hash = source.read_text(encoding="utf-8"), sha256(tests)
-
-        before_ok, _ = run_tests(workspace)
-        print(f"model={model} profile=fix")
-        print(f"before the agent: tests {'pass' if before_ok else 'FAIL'} (expected: FAIL)")
-
-        ctx = RunContext.from_profile(profile, workspace, strict=True)
-        result = run_agent(
-            TASK,
-            llm=app.llm,
-            tools=app.tools,
-            ctx=ctx,
-            settings=target,
-            system=SYSTEM,
-            max_iterations=args.max_iterations,
-            trajectory=writer,
-            redactor=redactor,
-        )
-
-        source_after = source.read_text(encoding="utf-8")
-        tests_changed = sha256(tests) != tests_hash
-        passed, tail = run_tests(workspace)
-
-        report(result, log_path, source_before, source_after, tests_changed, passed, tail)
-
-        if result.status == "done" and passed and not tests_changed:
-            ctx.snapshots.discard()
-            print("\nkept the change.")
-        else:
-            ctx.snapshots.rollback_all()
-            restored = source.read_text(encoding="utf-8") == source_before and sha256(tests) == tests_hash
-            print(f"\nrolled back. files are back to the original: {restored}")
+        try:
+            with DockerSandbox(workspace) as sandbox:
+                run_one(
+                    args, target, model, app, profile, workspace, sandbox, log_path, writer, redactor
+                )
+        except SandboxUnavailableError as e:
+            print(f"cannot run: {e}")
+            raise SystemExit(1) from None
 
 
 def report(

@@ -374,7 +374,7 @@ ch12 `data_analyst.py`, `sandbox_cost_tracker.py`; ch15 `e2b_sandbox.py`; sách 
 
 Mọi dòng trong bảng kiểm chứng đều đúng kỳ vọng; agent chạy được test của t001 trong sandbox.
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 
