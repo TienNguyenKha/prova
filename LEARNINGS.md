@@ -637,3 +637,62 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **Open:** there is no way yet to turn hooks on from a file (that is `contract.yaml`, M9); a stop hook that
   always says no costs `max_stop_denials` extra model calls before the run ends `unverified`; and ruff's
   "fixable with --fix" line reaches the model, which cannot act on it.
+
+
+## M8b: Tools of other people's servers, behind the same fences (2026-11-24)
+
+- **Built:** `prova/mcp/` with `config.py` (`mcp.yaml`), `tools.py` (checks, fingerprint, answer conversion),
+  `connection.py` (`McpConnection`), `adapter.py` (`McpToolAdapter`, `discover_tools`) and `servers.py`
+  (`open_mcp_servers`); `build_app(extra_tools=...)`; a repo-level `mcp.yaml`; two small servers in
+  `tests/fixtures/mcp/` written for the tests; `experiments/act2/m8b_mcp_agent.py`. The package `mcp` (2.3.0) was
+  added with `uv add`; it brings the whole server side of the SDK (starlette, uvicorn, ...), about 450 lines of
+  `uv.lock`. 729 unit tests.
+- **Probed before designing** (a scratch script, then the real SDK 2.3.0): a tool that raises is an answer with
+  `is_error=True`, not an exception; a timeout is `MCPError` with code `REQUEST_TIMEOUT` and a dead server is
+  `CONNECTION_CLOSED` (so the two are told apart by code, not by comparing text); every later call on a dead
+  connection fails at once; a server that prints to stdout before serving only makes the client log a warning
+  and go on; the server's stderr goes to our terminal unless it is redirected, and `Client(stdio_client(...,
+  errlog=file))` is how to redirect it; a child process does not inherit our environment.
+- **Decided:**
+  - The SDK is asyncio and Prova is not. Each connection owns a thread running an event loop, and its methods
+    hand work to that loop and wait with a time limit. No asyncio shows outside `prova/mcp/`.
+  - The server runs on this machine as a child process, with the SDK's minimal environment. Only servers listed
+    in `mcp.yaml` are ever started. This breaks the rule "commands never run on the host", and it is only
+    acceptable because the one server used is ours. A server written by somebody else needs a sandbox first.
+  - `mcp.yaml` has a mandatory permission per server and no defaults; a command is a list (never a shell
+    line); an unknown key is an error, so a typo is not a silent default; the file is read with `safe_load`.
+  - The model sees `mcp__<server>__<tool>`, and the description starts with "(a tool of the external MCP server
+    'name')", then the server's own words unchanged. A tool whose name, description (over 2,000 characters) or
+    schema is wrong is left out and reported, never repaired: cutting a description would edit what the model
+    reads, and that text is not ours. The reason in the log names the rule and does not repeat the text.
+  - The schema the model gets is the server's, returned as a copy. We do not check the arguments against it: the
+    server does, and a bad argument comes back as a `remote_error` with the server's own message. So a wrong
+    argument reaches the server before it is refused, unlike with a built-in tool.
+  - Only text is shown to the model. A block that is not text (an image, say) is left out and the answer says how
+    many. An error the server reports is a `remote_error`. A timeout is a `timeout`.
+  - A server that cannot start stops the whole run (`McpStartError` names it) and the ones already started are
+    closed. The config says the server should be there; a run that quietly goes on without its tools looks like
+    one that had them.
+  - A fingerprint (sha256 of name, description and schema, in canonical order) is kept for each server's tool
+    list, for M21 to notice a server that changes its mind after it was approved.
+  - `build_app` still starts nothing. Whoever opens the servers (`with open_mcp_servers(...)`) also closes them.
+- **Real run** (Sonnet, once, `review` profile): the agent called `mcp__knowledge__search_knowledge`, got the entry
+  for `cwe-918` and answered with it in 2 calls (2,948 input and 159 output tokens). The trajectory has the call
+  and its result like any other tool. The server's own log has the one line for the call and nothing reached our
+  terminal. No process was left running. With a profile that lacks the server's permission, the test with a real
+  server shows the server's log has no trace of the call: it was refused before it got there.
+- **Learned:**
+  - A test of mine looked for `cwe-22` in two places where it could never be (the server's log and the trajectory
+    hold only the call and a short message); it would have failed with correct code. I found it by reading the
+    test again before running it, and it now checks what the model was actually sent.
+  - I assumed "the SDK would break on stdout noise" and "a call after a timeout may leave the connection
+    unusable". The probe showed neither is true for 2.3.0, and I wrote the tests from what it showed.
+  - A relative `.venv/bin/python` in `mcp.yaml` works because the child process changes to the config's folder
+    first. I checked it by starting the real file from `/tmp`, because it was an assumption.
+  - The default test run went from 4 seconds to about 26, all of it from tests that start real servers. No
+    marker was added.
+- **Not tested, so not claimed:** a hostile server. The checks (`check_tool`, the fingerprint, the origin line)
+  exist and have unit tests, but nothing has run against a server that really tries a poisoned description, a
+  changed description after approval, or an answer with instructions in it. That is M21 (security-bench).
+- **Open:** a server that is configured but unreliable stops every run; the arguments are not checked on our
+  side; the server has no sandbox; and servers start one after another, so many servers make a slow start.

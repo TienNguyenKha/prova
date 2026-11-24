@@ -40,6 +40,10 @@ Update this file at the end of every working session.
   (`LintAfterEdit`, `TestsBeforeStop`, both in the sandbox), `ToolResult.notes`, the `hook_decision` event, the run
   status `unverified`. 607 unit tests; six real runs, none refused by the stop hook, so the refusal path is proven
   for the mechanism only. Entry in `LEARNINGS.md`. Also fixed: `run_tests` no longer leaves `.pytest_cache`.
+- **M8b** MCP client: `prova/mcp/` (`mcp.yaml` config, tool checks and fingerprint, `McpConnection` on its own
+  thread, `McpToolAdapter`, `open_mcp_servers`), `build_app(extra_tools=...)`, `mcp.yaml` and a demo server.
+  729 unit tests; one real run where the agent used `mcp__knowledge__search_knowledge`. The server runs on the
+  host (ours only); nothing was tried against a hostile server. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -54,7 +58,9 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- M8b MCP client (next in `plans/act-2-harness.md`).
+- M9 `AGENTS.md` contract and `contract.yaml` (next in `plans/act-2-harness.md`).
+- Decide whether the tests that start real MCP servers (about 20 s of the default run) get the `slow` marker.
+- Sandbox for MCP servers written by others (needs interactive stdin in `DockerSandbox`); before M21.
 - See a real model get sent back by the stop hook (needs a task where a fix is not obviously complete).
 - Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up) belongs to the caller, so decide it
   when the first real caller (the CLI or a worker) exists.
@@ -105,3 +111,8 @@ Update this file at the end of every working session.
 | 2026-11-24 | A hook that fails counts as no before a tool and at stop; after a tool it leaves the note "this check did not run" | A rule that could not be checked is not a rule that passed. After a tool there is nothing left to block, but the model must not read a missing lint as a clean one. |
 | 2026-11-24 | After too many refusals the stop hook ends the run as `unverified`, not `done` | `done` must keep meaning "the model finished and the checks agreed", so scripts and the benchmark cannot count a refused run as a success. |
 | 2026-11-24 | Lint and the test gate run in the sandbox; the path given to the container goes through `resolve_inside` | Code the model wrote never runs on the host, and a protected or outside path is never handed on. |
+| 2026-11-24 | Each `McpConnection` owns a thread with an event loop; its methods are synchronous and wait with a time limit | The MCP SDK is asyncio and the rest of Prova is not. Moving the whole loop to async would touch every tool, the registry, the hooks and about 600 tests for one milestone. |
+| 2026-11-24 | MCP servers run on the host as child processes with the SDK's minimal environment, and only those listed in `mcp.yaml` | Enough for the one server we wrote. It breaks "commands never run on the host", so a third-party server needs a sandbox first. |
+| 2026-11-24 | A tool of an MCP server whose name, description or schema fails the checks is left out and reported, never repaired; the log names the rule, not the server's text | The description is the server's text and the model reads it, so cutting it would be editing it. The text is untrusted, so it is not copied into logs. |
+| 2026-11-24 | The model gets the server's schema as it is and the arguments are not checked on our side; the answer shows text only and says what was left out | The server checks its own arguments. A schema validator would add a dependency and a second opinion about a schema we do not own. |
+| 2026-11-24 | A configured server that cannot start stops the whole run, and the ones already started are closed | The config says it must be there. Going on without its tools would look like a run that had them. |

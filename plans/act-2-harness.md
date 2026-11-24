@@ -485,7 +485,7 @@ ch08 `mcp_knowledge_server.py`, `online/mcp_github_server.py`; sách ch8 (ví d�
 
 Ba kiểm chứng ở trên đều đúng.
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 

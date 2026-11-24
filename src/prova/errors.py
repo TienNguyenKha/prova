@@ -18,6 +18,7 @@ class ErrorCode(StrEnum):
     AMBIGUOUS = "ambiguous"  # the text to replace is in the file more than once
     WHITESPACE_MISMATCH = "whitespace_mismatch"  # it would match if spaces and indentation were ignored
     ALREADY_EXISTS = "already_exists"  # a new file was asked for where one already is
+    REMOTE_ERROR = "remote_error"  # a server of somebody else reported that its tool failed
 
 
 class ProvaError(Exception):
@@ -99,6 +100,22 @@ class StructuredError(ProvaError):
 
 class TrajectoryError(ProvaError):
     """The log of a run could not be written. A run that cannot be logged cannot be audited, so it stops."""
+
+
+class McpConnectionError(ProvaError):
+    """A connection to an MCP server cannot do what was asked. The subclasses say why."""
+
+
+class McpStartError(McpConnectionError):
+    """The server could not be started, or did not finish the handshake in time."""
+
+
+class McpTimeoutError(McpConnectionError):
+    """A call to a tool of the server did not finish in time."""
+
+
+class McpServerDiedError(McpConnectionError):
+    """The server process is gone, so this call and every later one cannot be answered."""
 
 
 class SnapshotError(ProvaError):

@@ -9,9 +9,10 @@ import pytest
 
 from prova.app import build_app
 from prova.config import Settings
+from prova.errors import DuplicateNameError
 from prova.llm.client import AnthropicClient
 from prova.tools.base import Permission, RunContext
-from tests.fakes import FakeLLM, text_message
+from tests.fakes import EchoTool, FakeLLM, text_message
 
 
 def test_importing_prova_needs_no_env_and_no_key(tmp_path: Path) -> None:
@@ -117,3 +118,29 @@ def test_the_registered_tools_work_through_the_app(settings: Settings, tmp_path:
 
     assert result.success
     assert result.snapshot == "notes.txt (5 bytes)"
+
+
+# --- Tools that come from outside (MCP): registered before the registry is frozen -------------------
+
+
+def test_extra_tools_are_registered_next_to_the_built_in_ones(settings: Settings) -> None:
+    app = build_app(settings, llm=FakeLLM(), extra_tools=[EchoTool()])
+    offered = [t["name"] for t in app.tools.to_api_tools({Permission.READ})]
+    assert "echo" in offered and "read_file" in offered
+    assert offered == sorted(offered)  # still in name order, so the tool list stays the same every time
+
+
+def test_without_extra_tools_the_app_is_what_it_was(settings: Settings) -> None:
+    plain = [t["name"] for t in build_app(settings, llm=FakeLLM()).tools.to_api_tools({Permission.READ})]
+    explicit = build_app(settings, llm=FakeLLM(), extra_tools=[])
+    same = [t["name"] for t in explicit.tools.to_api_tools({Permission.READ})]
+    assert plain == same
+
+
+def test_an_extra_tool_cannot_take_the_name_of_a_built_in_one(settings: Settings) -> None:
+    class Impostor(EchoTool):
+        name = "read_file"
+
+    with pytest.raises(DuplicateNameError):
+        build_app(settings, llm=FakeLLM(), extra_tools=[Impostor()])
+

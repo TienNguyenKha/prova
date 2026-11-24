@@ -1,0 +1,14 @@
+# The MCP servers a run may start. Nothing that is not listed here is ever started.
+#
+# command:    the program and its arguments, as a list (there is no shell). It runs from the folder of this file.
+#             `.venv/bin/python` is spelled out because the server gets a minimal PATH, and a `python` found there
+#             may be another one, without the MCP package.
+# permission: what a tool of this server needs: read, write, exec or network. A run without it cannot call the tool.
+# timeout_s:  how long one call may take.
+#
+# The server below is a demo that lives with the test fixtures; the real knowledge base comes in S1.
+servers:
+  knowledge:
+    command: [".venv/bin/python", "tests/fixtures/mcp/knowledge_server.py"]
+    permission: read
+    timeout_s: 20
