@@ -36,6 +36,10 @@ Update this file at the end of every working session.
   system, limits on CPU, memory and processes), `run_tests` tool (permission `exec`), pinned image in
   `docker/sandbox/`. 526 unit tests and 18 Docker tests; the plan's table ran for real. The agent fixed t001 and
   ran the tests itself in the sandbox (one real run). Entry in `LEARNINGS.md`.
+- **M8** Hooks: `harness/hooks.py` (pre, post and stop hooks; a hook can only tighten), `harness/verifiers.py`
+  (`LintAfterEdit`, `TestsBeforeStop`, both in the sandbox), `ToolResult.notes`, the `hook_decision` event, the run
+  status `unverified`. 607 unit tests; six real runs, none refused by the stop hook, so the refusal path is proven
+  for the mechanism only. Entry in `LEARNINGS.md`. Also fixed: `run_tests` no longer leaves `.pytest_cache`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
   not implemented yet (now marked for M4), and two small notes (silent cut in a CSV column, `connect_ex` not blocked).
@@ -50,7 +54,8 @@ Update this file at the end of every working session.
 
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- M8 hooks (next in `plans/act-2-harness.md`).
+- M8b MCP client (next in `plans/act-2-harness.md`).
+- See a real model get sent back by the stop hook (needs a task where a fix is not obviously complete).
 - Open from M3: what to do after a `TRUNCATED` or refused reply (retry or give up) belongs to the caller, so decide it
   when the first real caller (the CLI or a worker) exists.
 
@@ -96,3 +101,7 @@ Update this file at the end of every working session.
 | 2026-11-24 | `run_tests` has a fixed command; the model gives only a `target`, passed after `--` | pytest options are a way to run other code or leave the workspace (`-p`, `--rootdir`). A fixed command needs no allowlist of arguments. |
 | 2026-11-24 | A failing test run is a successful tool call that says "tests FAILED"; an unexpected exit code or a timeout is an error | Red tests are what the model needs to read, not a broken tool; the message and `passed: false` keep it from looking like a pass. |
 | 2026-11-24 | The sandbox image is pinned by base digest and by package hash (`--require-hashes`); only python, pytest, ruff and coverage for now | A tag can be moved and a package can be replaced, so both are pinned. bandit and semgrep are heavy and wait for Act V. |
+| 2026-11-24 | A hook can only tighten: `allow` never lifts a permission denial, which stays in `ToolRegistry.dispatch` | A hook written wrong must not open a hole. Permissions and paths are fences; hooks are extra rules. |
+| 2026-11-24 | A hook that fails counts as no before a tool and at stop; after a tool it leaves the note "this check did not run" | A rule that could not be checked is not a rule that passed. After a tool there is nothing left to block, but the model must not read a missing lint as a clean one. |
+| 2026-11-24 | After too many refusals the stop hook ends the run as `unverified`, not `done` | `done` must keep meaning "the model finished and the checks agreed", so scripts and the benchmark cannot count a refused run as a success. |
+| 2026-11-24 | Lint and the test gate run in the sandbox; the path given to the container goes through `resolve_inside` | Code the model wrote never runs on the host, and a protected or outside path is never handed on. |

@@ -1,0 +1,126 @@
+"""Two hooks the harness runs by itself to check the model's work: lint after an edit, and tests before it
+may stop.
+
+The model cannot call them, skip them or change what they run. Both run in the sandbox, so nothing the
+model wrote ever runs on the host. A check that could not run is never reported as a check that passed.
+"""
+
+from prova.errors import ToolError
+from prova.harness.hooks import HookDecision, HookEvent
+from prova.tools.base import RunContext
+from prova.tools.paths import resolve_inside
+from prova.tools.run_tests import PYTEST_ARGV
+
+# compile() builds the code without running it: a syntax error is an exception, anything else is not.
+_COMPILE = "import sys; compile(open(sys.argv[1], encoding='utf-8').read(), sys.argv[1], 'exec')"
+_CODE_TOOLS = ("edit_file", "create_file")
+_EXIT_PASSED, _EXIT_FAILED, _EXIT_INTERRUPTED, _EXIT_NO_TESTS = 0, 1, 2, 5
+
+
+class LintAfterEdit:
+    """After a tool wrote a Python file: does it compile, and does ruff accept it? Information only."""
+
+    name = "lint_after_edit"
+
+    def __init__(self, *, timeout_s: float = 30.0, max_output_chars: int = 2_000) -> None:
+        self._timeout_s = timeout_s
+        self._max_output_chars = max_output_chars
+
+    def __call__(self, ev: HookEvent) -> HookDecision:
+        path = _changed_python_file(ev)
+        if path is None:
+            return HookDecision.allow()
+        sandbox = ev.ctx.sandbox
+        if sandbox is None:
+            return HookDecision.allow("lint did not run: this run has no sandbox")
+
+        compiled = sandbox.run(["python", "-c", _COMPILE, path], timeout_s=self._timeout_s, cwd="/work")
+        if compiled.timed_out:
+            return HookDecision.allow(f"lint did not finish within {self._timeout_s:g} seconds ({path})")
+        if compiled.exit_code != 0:
+            shown = _keep_end(compiled.output, self._max_output_chars)
+            return HookDecision.allow(f"{path} does not compile:\n{shown}")
+
+        # --no-cache: otherwise ruff writes a .ruff_cache folder into the workspace. `--` before the path:
+        # it is a path, never an option.
+        ruff = ["python", "-m", "ruff", "check", "--no-cache", "--output-format=concise", "--", path]
+        checked = sandbox.run(ruff, timeout_s=self._timeout_s, cwd="/work")
+        if checked.timed_out:
+            return HookDecision.allow(f"lint did not finish within {self._timeout_s:g} seconds ({path})")
+        if checked.exit_code == 0:
+            return HookDecision.allow(f"{path} compiles and passes ruff")
+        if checked.exit_code == 1:  # ruff's own code for "I ran and found problems"
+            shown = _keep_start(checked.output, self._max_output_chars)
+            return HookDecision.allow(f"ruff found problems in {path}:\n{shown}")
+        return HookDecision.allow(f"lint did not run: ruff ended with exit code {checked.exit_code}")
+
+
+class TestsBeforeStop:
+    """When the model says it is done, run the tests. Red, or not checkable: it may not end yet."""
+
+    __test__ = False  # the name starts with "Test": tell pytest this is not a test class
+    name = "tests_before_stop"
+
+    def __init__(
+        self, *, target: str | None = None, timeout_s: float = 120.0, max_output_chars: int = 3_000
+    ) -> None:
+        self._target = target
+        self._timeout_s = timeout_s
+        self._max_output_chars = max_output_chars
+
+    def __call__(self, ev: HookEvent) -> HookDecision:
+        sandbox = ev.ctx.sandbox
+        if sandbox is None:
+            return HookDecision.continue_run("the tests cannot be checked: this run has no sandbox")
+        argv = [*PYTEST_ARGV, *(["--", self._target] if self._target is not None else [])]
+        result = sandbox.run(argv, timeout_s=self._timeout_s, cwd="/work")
+
+        if result.timed_out:
+            return HookDecision.continue_run(
+                f"the tests could not be checked: they did not finish within {self._timeout_s:g} seconds"
+            )
+        shown = _keep_end(result.output, self._max_output_chars)  # the end: that is where pytest summarises
+        code = result.exit_code
+        if code == _EXIT_PASSED:
+            return HookDecision.allow("the tests pass")
+        if code == _EXIT_NO_TESTS:
+            return HookDecision.allow("no tests were collected, so there is nothing to check")
+        if code == _EXIT_FAILED:
+            return HookDecision.continue_run(f"the tests fail:\n{shown}")
+        if code == _EXIT_INTERRUPTED:
+            return HookDecision.continue_run(
+                f"the tests could not be collected (often an import or syntax error):\n{shown}"
+            )
+        message = f"the tests could not be checked: pytest ended with exit code {code}:\n{shown}"
+        return HookDecision.continue_run(message)
+
+
+def _changed_python_file(ev: HookEvent) -> str | None:
+    """The workspace-relative path of the Python file this event's tool just wrote, or None."""
+    if ev.tool not in _CODE_TOOLS or ev.result is None or not ev.result.success:
+        return None
+    path = (ev.args or {}).get("path")
+    if not isinstance(path, str) or not path.endswith(".py"):
+        return None
+    return _inside(ev.ctx, path)
+
+
+def _inside(ctx: RunContext, path: str) -> str | None:
+    """`path` relative to the workspace, or None when it is outside or protected (never handed on)."""
+    try:
+        target = resolve_inside(ctx.workspace, path, deny=ctx.deny)
+    except ToolError:
+        return None
+    return target.relative_to(ctx.workspace.resolve()).as_posix()
+
+
+def _keep_start(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text.rstrip("\n")
+    return f"{text[:limit].rstrip(chr(10))}\n[showing the first {limit} of {len(text)} characters]"
+
+
+def _keep_end(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text.rstrip("\n")
+    return f"{text[-limit:].lstrip(chr(10))}\n[showing the last {limit} of {len(text)} characters]"

@@ -1,58 +1,19 @@
 """Tests for prova.tools.run_tests.RunTestsTool: runs the tests in the sandbox, never on the host."""
 
-from collections.abc import Callable, Collection
+from collections.abc import Collection
 from pathlib import Path
 
 import pytest
 
 from prova.errors import ErrorCode, SandboxUnavailableError
 from prova.registry import Registry
-from prova.sandbox.base import ExecResult
 from prova.tools.base import Permission, RunContext, Tool, ToolResult
 from prova.tools.registry import ToolRegistry
 from prova.tools.run_tests import RunTestsTool
+from tests.fakes import FakeSandbox, exec_result
 
-
-class FakeSandbox:
-    """Answers with scripted results and records how it was called."""
-
-    def __init__(self, result: ExecResult | Exception) -> None:
-        self._result = result
-        self.calls: list[dict[str, object]] = []
-
-    def run(
-        self,
-        argv: list[str],
-        *,
-        timeout_s: float,
-        cwd: str = "/work",
-        on_output: Callable[[str], None] | None = None,
-    ) -> ExecResult:
-        self.calls.append({"argv": list(argv), "timeout_s": timeout_s, "cwd": cwd})
-        if isinstance(self._result, Exception):
-            raise self._result
-        return self._result
-
-    def close(self) -> None:
-        pass
-
-
-def done(
-    exit_code: int = 0,
-    stdout: str = "",
-    *,
-    stderr: str = "",
-    timed_out: bool = False,
-    truncated: bool = False,
-) -> ExecResult:
-    return ExecResult(
-        exit_code=exit_code,
-        stdout=stdout,
-        stderr=stderr,
-        timed_out=timed_out,
-        duration_s=1.5,
-        truncated=truncated,
-    )
+done = exec_result
+PYTEST = ["python", "-m", "pytest", "-x", "-q", "-p", "no:cacheprovider"]
 
 
 @pytest.fixture
@@ -96,7 +57,7 @@ def test_the_command_is_fixed_and_runs_in_the_workspace_mount(root: Path) -> Non
     sandbox = FakeSandbox(done(0, "1 passed"))
     run_tool(root, sandbox)
     assert sandbox.calls == [
-        {"argv": ["python", "-m", "pytest", "-x", "-q"], "timeout_s": 120.0, "cwd": "/work"}
+        {"argv": PYTEST, "timeout_s": 120.0, "cwd": "/work"}
     ]
 
 
@@ -109,7 +70,7 @@ def test_the_timeout_can_be_set_when_the_tool_is_made(root: Path) -> None:
 def test_a_target_goes_after_two_dashes_so_it_can_never_be_a_pytest_option(root: Path) -> None:
     sandbox = FakeSandbox(done(0))
     run_tool(root, sandbox, {"target": "tests"})
-    assert sandbox.calls[0]["argv"] == ["python", "-m", "pytest", "-x", "-q", "--", "tests"]
+    assert sandbox.calls[0]["argv"] == [*PYTEST, "--", "tests"]
 
 
 def test_a_target_that_looks_like_an_option_is_only_a_path(root: Path) -> None:

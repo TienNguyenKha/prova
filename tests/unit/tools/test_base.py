@@ -74,3 +74,32 @@ def test_a_result_is_immutable() -> None:
     result = ToolResult.ok("done")
     with pytest.raises(FrozenInstanceError):
         result.message = "changed"  # pyright: ignore[reportAttributeAccessIssue]
+
+
+# --- Notes: what a hook adds after a tool ran ----------------------------------
+
+
+def test_a_result_has_no_notes_unless_a_hook_adds_them() -> None:
+    assert ToolResult.ok("done").notes == ()
+
+
+def test_notes_are_shown_after_the_message_and_the_snapshot() -> None:
+    result = ToolResult.ok("edited a.py", snapshot="1│ x = 1").with_notes("[lint] clean", "[tests] 1 failed")
+    assert result.model_text() == "edited a.py\n\n1│ x = 1\n\n[lint] clean\n[tests] 1 failed"
+
+
+def test_notes_are_also_shown_after_an_error() -> None:
+    result = ToolResult.error(ErrorCode.NOT_FOUND, "no such file").with_notes("[audit] logged")
+    assert result.model_text() == "not_found: no such file\n\n[audit] logged"
+
+
+def test_adding_notes_gives_a_new_result_and_leaves_the_old_one_alone() -> None:
+    original = ToolResult.ok("done", data={"n": 1})
+    noted = original.with_notes("[lint] clean")
+    assert original.notes == () and noted.notes == ("[lint] clean",)
+    assert noted.data == {"n": 1} and noted.success is True  # a note never changes the outcome
+
+
+def test_adding_no_notes_changes_nothing() -> None:
+    result = ToolResult.ok("done")
+    assert result.with_notes() == result

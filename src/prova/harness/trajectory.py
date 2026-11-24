@@ -63,6 +63,18 @@ class ToolResultEvent(TrajectoryEvent):
     chars: int  # how much the model was shown
 
 
+class HookDecisionEvent(TrajectoryEvent):
+    """What one hook answered. `error` is why the hook failed or misbehaved: for the log, not the model."""
+
+    type: Literal["hook_decision"] = "hook_decision"
+    hook_kind: Literal["pre_tool_use", "post_tool_use", "stop"]
+    hook: str
+    tool: str | None
+    action: Literal["allow", "deny", "continue"]
+    message: str
+    error: str | None
+
+
 class OutcomeEvent(TrajectoryEvent):
     type: Literal["outcome"] = "outcome"
     status: str

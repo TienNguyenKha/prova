@@ -1,7 +1,7 @@
 """What a tool is, what it hands back to the agent loop, and how the model sees that result."""
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol, Self
 
@@ -55,6 +55,7 @@ class ToolResult:
     data: Any = None  # the full payload for code and logs; never sent to the model
     snapshot: str | None = None  # what the model sees after the message; if it is cut, it must say so
     error_code: ErrorCode | None = None
+    notes: tuple[str, ...] = ()  # added by hooks after the tool ran: information, never a change of outcome
 
     def __post_init__(self) -> None:
         if self.success and self.error_code is not None:
@@ -70,11 +71,17 @@ class ToolResult:
     def error(cls, code: ErrorCode, message: str) -> Self:
         return cls(success=False, message=message, error_code=code)
 
+    def with_notes(self, *notes: str) -> Self:
+        """A copy with `notes` added at the end. The outcome (success, data, error code) is not touched."""
+        return replace(self, notes=(*self.notes, *notes)) if notes else self
+
     def model_text(self) -> str:
-        """Exactly the text the model is shown: the message and the snapshot, never `data`."""
+        """Exactly the text the model is shown: the message, the snapshot and the notes, never `data`."""
         if not self.success:
-            return f"{self.error_code}: {self.message}"
-        return self.message if self.snapshot is None else f"{self.message}\n\n{self.snapshot}"
+            text = f"{self.error_code}: {self.message}"
+        else:
+            text = self.message if self.snapshot is None else f"{self.message}\n\n{self.snapshot}"
+        return f"{text}\n\n" + "\n".join(self.notes) if self.notes else text
 
     def to_tool_result_block(
         self, tool_use_id: str, *, redact: Callable[[str], str] | None = None

@@ -9,9 +9,11 @@ from anthropic import omit
 from anthropic.types import ContentBlockParam, Message, MessageParam, ToolResultBlockParam
 
 from prova.config import Settings
-from prova.errors import LLMError
+from prova.errors import ErrorCode, LLMError
+from prova.harness.hooks import HookEvent, HookKind, HookOutcome, Hooks, run_hooks
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import (
+    HookDecisionEvent,
     ModelRequestEvent,
     ModelResponseEvent,
     OutcomeEvent,
@@ -24,10 +26,11 @@ from prova.harness.trajectory import (
 from prova.llm.client import LLMClient
 from prova.llm.stop import describe_refusal
 from prova.llm.usage import UsageLog, UsageRecord
-from prova.tools.base import RunContext
+from prova.tools.base import RunContext, ToolResult
 from prova.tools.registry import ToolRegistry
 
-Status = Literal["done", "max_iterations", "max_tokens", "refused", "error"]
+# "unverified": the model said it was done, but the stop hooks did not agree, even after being asked again.
+Status = Literal["done", "unverified", "max_iterations", "max_tokens", "refused", "error"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,14 +57,20 @@ def run_agent(
     clock: Callable[[], float] = time.perf_counter,
     trajectory: TrajectoryWriter | None = None,
     redactor: Redactor | None = None,
+    hooks: Hooks | None = None,
 ) -> AgentResult:
     """Run the model on `task` until it answers, fails, or has used `max_iterations` calls.
 
     Which tools the model is offered, and which it may actually run, both come from `ctx.permissions`.
     With a `trajectory`, every step is logged; a log that cannot be written stops the run (TrajectoryError).
     The `redactor` cleans tool results before the model sees them (the trajectory redacts on its own).
+    `hooks` are rules around the loop (see prova.harness.hooks): they can block a tool, add notes to its
+    result, or keep the run going when the model wants to stop. Permissions are not hooks: no hook can
+    lift them.
     """
     redact = redactor if redactor is not None else Redactor()
+    active = hooks if hooks is not None else Hooks()
+    stop_denials = 0
     messages: list[MessageParam] = [{"role": "user", "content": task}]
     offered = tools.to_api_tools(ctx.permissions)
     usage = UsageLog()
@@ -119,9 +128,22 @@ def run_agent(
 
         reason = response.stop_reason
         if reason == "end_turn":
-            return finish("done", turn, final_text=_text_of(response))
+            verdict = run_hooks(active.stop, HookEvent("stop", ctx))
+            _log_hook_outcomes(log, "stop", None, verdict.outcomes)
+            if not verdict.blocked:
+                return finish("done", turn, final_text=_text_of(response))
+            if stop_denials >= active.max_stop_denials:
+                detail = (
+                    f"the stop checks still refused after {stop_denials} more tries, so the run is not "
+                    f"called done; last reason: {verdict.message}"
+                )
+                return finish("unverified", turn, final_text=_text_of(response), detail=detail)
+            stop_denials += 1
+            retry = f"[stop check] You may not finish yet. {verdict.message}"
+            messages.append({"role": "user", "content": retry})
+            continue
         if reason == "tool_use":
-            answers = _answer_tool_calls(response, tools, ctx, redact, log)
+            answers = _answer_tool_calls(response, tools, ctx, redact, log, active)
             messages.append({"role": "user", "content": answers})
             continue
         # Everything below ends the run, and no tool in such a reply is run: the reply is not a complete,
@@ -144,23 +166,33 @@ def _answer_tool_calls(
     ctx: RunContext,
     redact: Redactor,
     log: Callable[[TrajectoryEvent], None],
+    hooks: Hooks,
 ) -> list[ToolResultBlockParam]:
     """Answer every tool_use block of the reply. All results go back in ONE message, in the same order."""
     answers: list[ToolResultBlockParam] = []
     for block in response.content:
         if block.type != "tool_use":
             continue
-        denied = tools.is_denied(block.name, ctx)  # the harness's decision, not the tool's
-        # The call is logged BEFORE it runs: if the tool hangs or crashes, the log still shows what was asked.
+        denied = tools.is_denied(block.name, ctx)  # the permissions' decision, not a hook's
+        args = _as_object(block.input)
+        # Logged BEFORE anything runs: if a hook or the tool hangs, the log still shows what was asked.
         log(
             ToolCallEvent(
                 tool=block.name,
                 tool_use_id=block.id,
-                input=_as_object(block.input),
+                input=args,
                 decision="deny" if denied else "allow",
             )
         )
-        result = tools.dispatch(block.name, block.input, ctx)
+        before = run_hooks(hooks.pre, HookEvent("pre_tool_use", ctx, block.name, args))
+        _log_hook_outcomes(log, "pre_tool_use", block.name, before.outcomes)
+        if before.blocked:
+            result = ToolResult.error(ErrorCode.SAFETY, before.message)  # it did not run: no post hooks
+        else:
+            result = tools.dispatch(block.name, block.input, ctx)  # a hook's "allow" lifts no denial
+            after = run_hooks(hooks.post, HookEvent("post_tool_use", ctx, block.name, args, result))
+            _log_hook_outcomes(log, "post_tool_use", block.name, after.outcomes)
+            result = result.with_notes(*after.notes)
         answers.append(result.to_tool_result_block(block.id, redact=redact.redact))
         log(
             ToolResultEvent(
@@ -173,6 +205,25 @@ def _answer_tool_calls(
             )
         )
     return answers
+
+
+def _log_hook_outcomes(
+    log: Callable[[TrajectoryEvent], None],
+    kind: HookKind,
+    tool: str | None,
+    outcomes: tuple[HookOutcome, ...],
+) -> None:
+    for outcome in outcomes:
+        log(
+            HookDecisionEvent(
+                hook_kind=kind,
+                hook=outcome.hook,
+                tool=tool,
+                action=outcome.action,
+                message=outcome.message,
+                error=outcome.error,
+            )
+        )
 
 
 def _as_object(value: object) -> dict[str, Any]:

@@ -578,3 +578,62 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **Open:** the local image tag `prova-sandbox:1` is not bit-for-bit reproducible (build timestamps); a run
   waits for each container to disappear, which costs one more `docker ps` per command; and the isolation is
   as strong as Docker's, with nothing of ours underneath.
+
+
+## M8: Hooks, rules that live outside the loop (2026-11-24)
+
+- **Built:** `harness/hooks.py` (`HookEvent`, `HookDecision`, `Hooks`, `run_hooks`), `harness/verifiers.py`
+  (`LintAfterEdit`, `TestsBeforeStop`), `ToolResult.notes`, a `hook_decision` event in the trajectory, a new run
+  status `unverified`, and `run_agent(hooks=...)`. 607 unit tests.
+- **Decided:**
+  - A hook can only make a run stricter. Before a tool it can say no; after a tool it can add a note; when the
+    model wants to stop it can say "not yet". Permissions and path checks are not hooks: they stay in
+    `ToolRegistry.dispatch`, and a hook's `allow` never lifts one (a test runs a "generous" hook next to a tool the
+    run has no permission for, and the tool still does not run).
+  - Where a no is possible, a hook that raises, or answers with something that is not a `HookDecision`, counts as a
+    no. The model is told "the hook X failed", never the exception text; only the log has the text.
+    After a tool there is nothing to block, so a failed hook leaves the note "this check did not run" instead,
+    so a missing lint is not read as a clean lint. At stop, a hook that fails keeps the run going: nothing was
+    verified.
+  - The first `deny` ends the chain; after a tool every hook runs, so one failure does not hide the others.
+  - A hook that blocks a tool gives the model the error code `safety` (a rule said no), not `permission_denied`
+    (the run lacks the permission).
+  - Several tool calls in one reply are still answered in one message in order, also when one was blocked by a hook.
+  - The stop hook is only asked when the model ends normally (`end_turn`). After `max_stop_denials` refusals
+    (default 2) the run ends as `unverified`, a status of its own, so no script or benchmark can count it as done.
+  - Both verifiers run in the sandbox. `LintAfterEdit` compiles (builds the code, never runs it) and then calls
+    `ruff check`; `TestsBeforeStop` runs pytest. A check that could not run (no sandbox, timeout, a killed process)
+    keeps the model from stopping; a project with no tests at all (pytest exit code 5) may stop, with that said in
+    the log.
+  - A path that a hook is about to hand to the sandbox goes through `resolve_inside` first: `../x.py` and a file in
+    the deny-list are skipped.
+- **Real runs** (task t001, each checked by a separate pytest run in the sandbox, which passed every time):
+
+  | Model | Condition | Calls | Stop hook |
+  |---|---|---|---|
+  | sonnet-5-5 | agent cannot use `run_tests` | 4 | allow |
+  | sonnet-5-5 | normal | 4 | allow |
+  | haiku-5-5 (x3) | agent cannot use `run_tests` | 4, 3, 4 | allow |
+  | sonnet-5-5 | "change as little as possible" | 4 | allow |
+
+  After each edit the model received `[lint_after_edit] injection_guard.py compiles and passes ruff`.
+- **What was not seen live:** the stop hook never refused a real model. Each time the model's fix was already
+  complete (it read the tests and covered them all, even when told to change as little as possible), so the gate
+  said `allow`. The refusal path is covered by unit tests with a scripted model and by the hook against a real
+  container (red tests give `continue`), but I have not watched a real model get sent back to work. The plan's
+  second check ("the agent tries to finish with red tests and is returned") is therefore proven for the
+  mechanism, not yet for a model.
+- **Learned:**
+  - `LintAfterEdit` is asked after every tool, so 4 of the 5 `hook_decision` lines of a run are empty `allow`s
+    (after search and read). The log is complete but noisy; count lints with `jq 'select(.message != "")'`.
+  - In the run where `run_tests` was hidden, the model still called it, because my task text named it. The
+    permissions refused the call at dispatch: the tool list is not the fence, the check at call time is.
+  - `run_tests` from M7 had no `-p no:cacheprovider`, so every run left a `.pytest_cache` in the agent's
+    workspace. The hooks share the command with the tool now (`PYTEST_ARGV`), and `ruff` gets `--no-cache` for the
+    same reason. A test of the real containers showed the workspace stays clean.
+  - A class called `TestsBeforeStop` looks like a test class to pytest; it needs `__test__ = False`.
+  - Unit tests with a fake sandbox could not have told me that the real `ruff` flags and the `compile` snippet
+    work. Running both hooks once against real containers was the check that did.
+- **Open:** there is no way yet to turn hooks on from a file (that is `contract.yaml`, M9); a stop hook that
+  always says no costs `max_stop_denials` extra model calls before the run ends `unverified`; and ruff's
+  "fixable with --fix" line reaches the model, which cannot act on it.

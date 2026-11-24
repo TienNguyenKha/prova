@@ -8,7 +8,8 @@ from prova.tools.paths import resolve_inside
 
 DEFAULT_TIMEOUT_S = 120.0
 DEFAULT_OUTPUT_CHARS = 6_000  # how much output the model sees: the END, where pytest prints its summary
-_PYTEST = ["python", "-m", "pytest", "-x", "-q"]
+# `-p no:cacheprovider`: without it pytest writes a .pytest_cache folder into the workspace, which is mounted.
+PYTEST_ARGV = ["python", "-m", "pytest", "-x", "-q", "-p", "no:cacheprovider"]
 
 # pytest's exit codes that mean it ran and has something to say
 _EXIT_PASSED, _EXIT_FAILED, _EXIT_INTERRUPTED, _EXIT_NO_TESTS = 0, 1, 2, 5
@@ -44,7 +45,7 @@ class RunTestsTool:
             message = "this run has no sandbox, and commands are never run outside one: nothing was run"
             raise ToolError(ErrorCode.SAFETY, message)
 
-        argv = list(_PYTEST)
+        argv = list(PYTEST_ARGV)
         if args.target is not None:
             target = resolve_inside(ctx.workspace, args.target, deny=ctx.deny)
             if not target.exists():

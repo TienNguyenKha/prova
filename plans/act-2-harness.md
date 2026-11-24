@@ -432,7 +432,7 @@ ch10 `.claude/settings.json`; ch15 `_verify_python`; sách ch10 (Hooks), ch15 (v
 
 Hai kiểm chứng ở trên đều xanh; trajectory có đủ `hook_decision`.
 
-- [ ] Hoàn thành
+- [x] Hoàn thành
 
 ---
 

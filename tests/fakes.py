@@ -1,6 +1,6 @@
 """Hand-written fakes. They satisfy the Protocols in src/ by shape, with no inheritance and no patching."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 from prova.errors import ErrorCode, ToolError
 from prova.registry import Registry
+from prova.sandbox.base import ExecResult
 from prova.tools.base import Permission, RunContext, Tool, ToolResult
 from prova.tools.registry import ToolRegistry
 
@@ -171,3 +172,50 @@ def make_tool_registry(*tools: Tool) -> ToolRegistry:
         registry.register(tool)
     registry.freeze()
     return ToolRegistry(registry)
+
+
+# --- A fake sandbox ------------------------------------------------------------
+
+
+def exec_result(
+    exit_code: int = 0,
+    stdout: str = "",
+    *,
+    stderr: str = "",
+    timed_out: bool = False,
+    truncated: bool = False,
+) -> ExecResult:
+    return ExecResult(
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        duration_s=1.5,
+        truncated=truncated,
+    )
+
+
+class FakeSandbox:
+    """Answers with scripted results, one per call; the last one repeats. An Exception in the list is raised.
+    Every call is recorded. Satisfies Sandbox."""
+
+    def __init__(self, *results: ExecResult | Exception) -> None:
+        self._results = list(results) or [exec_result()]
+        self.calls: list[dict[str, Any]] = []
+
+    def run(
+        self,
+        argv: list[str],
+        *,
+        timeout_s: float,
+        cwd: str = "/work",
+        on_output: Callable[[str], None] | None = None,
+    ) -> ExecResult:
+        self.calls.append({"argv": list(argv), "timeout_s": timeout_s, "cwd": cwd})
+        result = self._results.pop(0) if len(self._results) > 1 else self._results[0]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    def close(self) -> None:
+        pass
