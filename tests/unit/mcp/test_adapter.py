@@ -13,7 +13,6 @@ from typing import Any
 
 import mcp.types as t
 import pytest
-from prova.mcp.adapter import McpToolAdapter, discover_tools
 
 from prova.agent.loop import AgentResult, run_agent
 from prova.config import Settings
@@ -22,6 +21,7 @@ from prova.harness.hooks import HookDecision, HookEvent, Hooks
 from prova.harness.permissions import Permission
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
+from prova.mcp.adapter import McpToolAdapter, discover_tools
 from prova.mcp.config import McpConfig, McpServerConfig
 from prova.mcp.connection import McpConnection
 from prova.tools.base import RunContext, Tool, ToolResult

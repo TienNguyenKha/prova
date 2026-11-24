@@ -37,14 +37,19 @@ extend-exclude = ["experiments/act1/m3_cases"]
 select = ["E", "F", "I", "B", "UP", "SIM", "RET", "PTH", "S", "BLE", "T20"]
 # S = Bandit rules, BLE = blocks bare `except Exception`, T20 = blocks print
 
+[tool.ruff.lint.isort]
+# Said out loud so the import order does not depend on what happens to be on disk or installed.
+known-first-party = ["prova", "bench", "tests"]
+
 [tool.ruff.lint.per-file-ignores]
 "experiments/**" = ["T20"]   # experiment scripts may print
 "tests/**" = ["S101"]        # assert is normal in tests
+"bench/tasks/**/hidden_tests/**" = ["S101"]  # the hidden tests of a task are tests
 "experiments/act2/fixtures/**" = ["S101"]  # task fixtures hold their own tests
 
 [tool.pyright]
-include = ["src", "tests"]
-strict = ["src"]
+include = ["src", "tests", "bench"]
+strict = ["src", "bench"]
 venvPath = "."
 venv = ".venv"
 

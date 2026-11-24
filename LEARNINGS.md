@@ -847,3 +847,28 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   for the reason I think it does.
 - **Limits:** 100% of lines says every line ran, not that it was checked. The floor is not in `addopts`, so a plain
   `uv run pytest` does not enforce it; there is no CI before M10, so a person runs `--cov`.
+
+## M10 (in progress): the first task and the cross-check (2026-11-24)
+
+- **Built so far:** `bench/task.py` (`Task`, `load_task`: `task.yaml` loaded strictly, a wrong one is refused with the
+  field named), the first task `bench/tasks/dev/t001_injection_regex/` (repo, hidden tests, reference patch), and
+  `bench/validate_tasks.py` (all four steps of the spec). 984 unit tests, 21 docker tests.
+- **What the cross-check proves:** the hidden tests are red on the original code, green with the reference patch,
+  the same result in 3 runs of each state, and they run every line and branch the patch adds (coverage, on the
+  patched code). It reads pytest's junit report, not its text. A skipped test, a test that did not run, and a run
+  that left no report are all problems: nothing that could not be shown is taken as fine.
+- **How I checked the tests of the validator:** the first 15 were green at once, so I broke the code on purpose in
+  5 ways (skip counted as a pass, no stability check, a missing report read as empty, only the first case of a
+  parametrized test, the "must fail on the original" check removed). Each broke exactly one test. For the
+  coverage step 7 mutations: 6 were caught and one survived, "do not filter `.py` files": there was no test with a
+  patch that touches a README. That hole was in my tests, not in the code.
+- **Mistakes of mine:**
+  - A test of mine said the default of `forbidden_paths` was `("hidden_tests/", "tests/")`, while the decision is that
+    only `hidden_tests/` is always there. I found it by rereading the test before writing the code.
+  - A test patch with no context lines is refused by `git apply` (it needs `--unidiff-zero`). I first thought the
+    validator was wrong.
+  - `ruff` was hiding 4 import-order errors in old test files: its cache said "passed". A clean worktree of `HEAD`
+    showed they were there already. Use `ruff check . --no-cache` before a commit.
+- **Open:** hidden tests are run, not mutated (running a line is not checking it; M13b). The junit file is written
+  in the sandbox where the agent's code also runs, so the runner must not trust it blindly when it grades. Only one
+  of the three tasks exists, and there is no runner, grader or report yet.

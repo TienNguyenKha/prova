@@ -9,11 +9,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-from prova.prompts.render import load_layers, render_system, render_user_context
-
 from prova.app import build_app
 from prova.config import Settings
 from prova.harness.permissions import load_profiles
+from prova.prompts.render import load_layers, render_system, render_user_context
 from tests.fakes import FakeLLM
 
 ROOT = Path(__file__).resolve().parents[3]

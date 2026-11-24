@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from prova.contract import (
     PROMPT_ONLY,
     Contract,
@@ -19,7 +20,6 @@ from prova.contract import (
     check_contract,
     load_contract,
 )
-
 from prova.errors import ConfigError, ContractError
 from prova.harness.hooks import Hooks
 from tests.fakes import make_tool_registry
