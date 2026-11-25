@@ -6,7 +6,9 @@ on the same answers, the chain of tool calls is no longer the recorded one and t
 that was not recorded is a CassetteMiss, never a call to the API.
 
 To record again (about $0.20, needs the API):
-  uv run python -m bench.run --record bench/cassettes/dev.jsonl --confirm   (after moving the old file away)
+  uv run python -m bench.run --record bench/cassettes/dev.jsonl --confirm \
+    --task t001_injection_regex --task t002_url_branch_unreachable --task t006_fail_open_classifier
+  (after moving the old file away; without --task every task of the split is run, the newer ones too)
   uv run pytest -m docker -q
 """
 
@@ -31,7 +33,8 @@ pytestmark = pytest.mark.docker
 
 ROOT = Path(__file__).resolve().parents[2]
 CASSETTE = ROOT / "bench" / "cassettes" / "dev.jsonl"
-# What the recorded run ended with. The grading is run again here, in a real container.
+# The tasks the cassette has answers for, and what the recorded run ended with. Tasks added later are not
+# here: they have no recorded answers. The grading is run again here, in a real container.
 RESOLVED = {
     "t001_injection_regex": False,  # its regex also flags a negated phrase (see LEARNINGS)
     "t002_url_branch_unreachable": True,
@@ -68,7 +71,7 @@ def replayed(tmp_path_factory: pytest.TempPathFactory) -> Replayed:
             seed=0,
             config=agent.config,
         )  # fmt: skip
-        for folder in select_tasks(ROOT / "bench" / "tasks", "dev", [])
+        for folder in select_tasks(ROOT / "bench" / "tasks", "dev", list(RESOLVED))
     ]
     return Replayed(rows, replay, results)
 

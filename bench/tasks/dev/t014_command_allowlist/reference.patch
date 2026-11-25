@@ -1,0 +1,26 @@
+diff --git a/command_gate.py b/command_gate.py
+--- a/command_gate.py
++++ b/command_gate.py
+@@ -4,6 +4,8 @@
+ from dataclasses import dataclass
+ 
+ ALLOWED = frozenset({"ls", "cat", "git", "grep", "pytest"})
++# What makes a shell do more than start one program: other commands, substitutions, redirections, line breaks.
++SHELL_SYNTAX = frozenset(";&|<>`$(){}\\\n\r")
+ 
+ 
+ @dataclass(frozen=True, slots=True)
+@@ -16,7 +18,12 @@
+ def run_allowed(command: str, run: Callable[[str], int], allowed: frozenset[str] = ALLOWED) -> Outcome:
+     """Run `command` with `run` (which hands the text to a shell and returns its exit code), but only if the
+     program it starts is in `allowed`. A command that is not allowed is not run and is not an error."""
+-    program = command.split()[0]
++    words = command.split()
++    if not words:
++        return Outcome(ran=False, reason="the command is empty", exit_code=None)
++    program = words[0]
+     if program not in allowed:
+         return Outcome(ran=False, reason=f"{program} is not an allowed program", exit_code=None)
++    if SHELL_SYNTAX.intersection(command):
++        return Outcome(ran=False, reason="the command has shell syntax, not just one program", exit_code=None)
+     return Outcome(ran=True, reason="allowed", exit_code=run(command))

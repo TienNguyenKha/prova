@@ -1,0 +1,22 @@
+diff --git a/reminder.py b/reminder.py
+--- a/reminder.py
++++ b/reminder.py
+@@ -26,8 +26,17 @@
+     for issue in issues:
+         if issue["state"] != "open":
+             continue
+-        if (today - issue["opened"]).days < idle_days:
++        quiet_since = _quiet_since(issue, bot)
++        if (today - quiet_since).days < idle_days:
+             continue
++        if any(c["author"] == bot and c["created"] >= quiet_since for c in issue["comments"]):
++            continue  # already reminded since the last word from a person
+         post_comment(issue["number"], REMINDER)
+         reminded.append(issue["number"])
+     return reminded
++
++
++def _quiet_since(issue: Issue, bot: str) -> date:
++    """The date of the last comment by a person, or of the opening if no person has commented."""
++    people = [c["created"] for c in issue["comments"] if c["author"] != bot]
++    return max(people, default=issue["opened"])

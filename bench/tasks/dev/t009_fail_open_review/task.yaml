@@ -1,0 +1,31 @@
+id: t009_fail_open_review
+benches: [fix]
+split: dev
+difficulty: medium
+source: ""
+issue: |
+  `review` in approval_gate.py is a gate for risky actions: it asks a reviewer service whether an action may go
+  ahead. An action must go ahead only when the reviewer clearly approves it, that is when its reply is a JSON
+  object whose "verdict" is the text "approved". In every other case the action must be held back (`approved` is
+  False, with a reason that says why) and `review` must not raise: the reviewer cannot be reached, the reply is
+  not JSON or not an object, it has no verdict, or its verdict is not text. Replies that already work must keep
+  working. The test `test_an_action_is_not_approved_when_the_reviewer_cannot_be_reached` in tests/ shows one of
+  these cases.
+fail_to_pass:
+  - hidden_tests/test_fix.py::test_a_reviewer_that_cannot_be_reached_does_not_approve
+  - hidden_tests/test_fix.py::test_a_reply_that_cannot_be_read_does_not_approve
+pass_to_pass:
+  - hidden_tests/test_fix.py::test_an_action_the_reviewer_approves_goes_ahead
+  - hidden_tests/test_fix.py::test_a_verdict_other_than_approved_holds_the_action_back
+  - hidden_tests/test_fix.py::test_the_reviewer_is_asked_once_with_the_text_of_the_action
+localization:
+  files: [approval_gate.py]
+  symbols: [review]
+forbidden_paths: [hidden_tests/, tests/]
+forbidden_tools: []
+budget:
+  max_tool_calls: 40
+  max_usd: 0.50
+  max_seconds: 600
+tags: [fail-open, parsing, approval]
+notes: ""

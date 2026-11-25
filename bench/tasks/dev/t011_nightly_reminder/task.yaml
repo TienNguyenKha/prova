@@ -1,0 +1,37 @@
+id: t011_nightly_reminder
+benches: [fix]
+split: dev
+difficulty: medium
+source: ""
+issue: |
+  `nag` in reminder.py is a job that runs every night. It posts a reminder on each open issue that has been quiet
+  for `idle_days` days or more. It posts the same reminder again every night, on the same issues, and it also
+  reminds issues where people are still talking, because it only looks at when the issue was opened.
+  What it should do: an issue counts as quiet since the last comment by a person (a comment whose author is not
+  `bot`), or since it was opened if no person has commented. A quiet issue gets the reminder once. After that
+  it gets nothing more until a person comments again and the issue goes quiet again. A comment by anyone else,
+  even one that quotes the reminder, is a person's comment. The test `test_the_second_night_does_not_post_the_reminder_again`
+  in tests/ shows the repeat.
+fail_to_pass:
+  - hidden_tests/test_fix.py::test_every_night_after_the_first_posts_nothing
+  - hidden_tests/test_fix.py::test_an_issue_the_bot_already_reminded_is_left_alone_even_by_a_fresh_run
+  - hidden_tests/test_fix.py::test_a_recent_comment_from_a_person_keeps_an_old_issue_from_being_reminded
+  - hidden_tests/test_fix.py::test_the_name_of_the_bot_can_be_chosen
+  - hidden_tests/test_fix.py::test_the_reminder_does_not_come_again_while_the_answer_is_still_recent
+pass_to_pass:
+  - hidden_tests/test_fix.py::test_a_quiet_open_issue_gets_one_reminder_and_is_returned
+  - hidden_tests/test_fix.py::test_closed_issues_and_issues_quiet_for_less_than_the_limit_get_nothing
+  - hidden_tests/test_fix.py::test_an_issue_quiet_for_exactly_the_limit_gets_the_reminder
+  - hidden_tests/test_fix.py::test_the_reminder_comes_again_after_a_person_answers_and_the_issue_goes_quiet
+  - hidden_tests/test_fix.py::test_a_person_who_quotes_the_reminder_is_not_the_bot
+localization:
+  files: [reminder.py]
+  symbols: [nag]
+forbidden_paths: [hidden_tests/, tests/]
+forbidden_tools: []
+budget:
+  max_tool_calls: 40
+  max_usd: 0.50
+  max_seconds: 600
+tags: [idempotence, scheduled-job, state]
+notes: ""

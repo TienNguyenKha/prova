@@ -1,0 +1,37 @@
+diff --git a/approval_gate.py b/approval_gate.py
+--- a/approval_gate.py
++++ b/approval_gate.py
+@@ -13,10 +13,29 @@
+ 
+ def review(action: str, ask_reviewer: Callable[[str], str]) -> Decision:
+     """Ask `ask_reviewer` (a function from the text of an action to the reviewer's reply, which raises when
+-    the service cannot be reached) whether `action` may go ahead."""
++    the service cannot be reached) whether `action` may go ahead.
++
++    Only a reply that clearly approves lets it go ahead. A gate that opens when it cannot decide is not a gate.
++    """
+     try:
+         reply = ask_reviewer(action)
+-    except Exception:  # noqa: BLE001 - any failure of the service
+-        return Decision(approved=True, reason="the reviewer could not be reached, so the work goes on")
+-    verdict = json.loads(reply)["verdict"]
++    except Exception as e:  # noqa: BLE001 - any failure of the service
++        reason = f"the reviewer could not be reached ({type(e).__name__}), so the action is held back"
++        return Decision(approved=False, reason=reason)
++    verdict = _read_verdict(reply)
++    if verdict is None:
++        reason = "the reviewer's reply could not be understood, so the action is held back"
++        return Decision(approved=False, reason=reason)
+     return Decision(approved=verdict == "approved", reason=f"the reviewer said {verdict}")
++
++
++def _read_verdict(reply: object) -> str | None:
++    """The verdict in the reply, or None if the reply is not a JSON object with a verdict that is text."""
++    if not isinstance(reply, str):
++        return None
++    try:
++        result = json.loads(reply)
++    except ValueError:
++        return None
++    verdict = result.get("verdict") if isinstance(result, dict) else None
++    return verdict if isinstance(verdict, str) else None

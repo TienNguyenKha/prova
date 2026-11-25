@@ -1,0 +1,34 @@
+id: t014_command_allowlist
+benches: [fix]
+split: dev
+difficulty: medium
+source: ""
+issue: |
+  `run_allowed` in command_gate.py runs a shell command only if the program it starts is on a short list. The
+  text is handed to a shell (`run` does that), so the shell can do more than start that one program: it can run a
+  second command after `;`, `&&`, `||`, `|`, `&` or a new line, run a command inside `$(...)` or backticks,
+  and read or write files with `<` and `>`. A command like `ls src; rm -rf build` starts with an allowed program
+  and gets through today. A command is to be run only if it is one allowed program with plain arguments: if its
+  text contains anything the shell would treat as more than that, it is not run (`ran` is False, with a reason),
+  and neither is an empty command. Neither case may raise. Commands that are fine today must keep working and
+  must be passed to `run` as written. The test `test_a_second_command_after_a_semicolon_is_not_run` in tests/
+  shows one of these cases.
+fail_to_pass:
+  - hidden_tests/test_fix.py::test_a_command_that_makes_the_shell_do_something_more_is_not_run
+  - hidden_tests/test_fix.py::test_an_empty_command_is_not_run_and_is_not_an_error
+pass_to_pass:
+  - hidden_tests/test_fix.py::test_an_allowed_program_with_plain_arguments_is_run_as_written
+  - hidden_tests/test_fix.py::test_the_exit_code_of_the_command_is_returned_even_when_it_is_not_zero
+  - hidden_tests/test_fix.py::test_a_program_that_is_not_on_the_list_is_not_run
+  - hidden_tests/test_fix.py::test_the_list_of_allowed_programs_can_be_chosen
+localization:
+  files: [command_gate.py]
+  symbols: [run_allowed]
+forbidden_paths: [hidden_tests/, tests/]
+forbidden_tools: []
+budget:
+  max_tool_calls: 40
+  max_usd: 0.50
+  max_seconds: 600
+tags: [command-injection, allowlist, shell]
+notes: ""

@@ -45,6 +45,7 @@ known-first-party = ["prova", "bench", "tests"]
 "experiments/**" = ["T20"]   # experiment scripts may print
 "tests/**" = ["S101"]        # assert is normal in tests
 "bench/tasks/**/hidden_tests/**" = ["S101"]  # the hidden tests of a task are tests
+"bench/tasks/**/repo/tests/**" = ["S101"]  # and so are the tests that come with its repo
 "experiments/act2/fixtures/**" = ["S101"]  # task fixtures hold their own tests
 
 [tool.pyright]

@@ -1110,3 +1110,23 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   with itself). One piece of code could never run, a branch for a cost already unknown, and was removed.
 - **Open:** the loop's `read_files` and `verify` are only fakes so far. Whether to keep the patch between attempts
   or roll it back was decided as "keep" without a measurement.
+
+## M13 (in progress): tasks with a test the agent can see
+
+- **Why new tasks:** the loop of M13 needs a check the agent can run. The three tasks of M10 keep all their tests
+  hidden, so the loop would stop at once as `unverifiable`. t009, t011 and t014 each give the agent one failing test
+  in `repo/tests/` and keep stricter tests hidden, the way a real issue shows one symptom of a wider bug.
+- **The point of the hidden tests is overfitting:** a fix that makes only the visible test pass must fail them.
+  Checked by writing such a fix for each task: it fails 10 hidden tests in t009 (unreadable replies still raise),
+  4 in t011 (a reminder remembered in memory is lost in a fresh run and ignores people's comments) and 17 in t014
+  (only `;` blocked; `&&`, `|`, `$(...)`, new lines and empty commands get through or raise). In t011 the visible test
+  failed too, because the remembered set leaked from one test to the next, so that check is less clean.
+- **The cross-check found a wrong test, not a wrong patch:** in t011 a comment by another bot 20 days ago made the
+  issue "not quiet yet", so the expected reminder could not come. A test that does not pass with the reference patch
+  is as much a fault as a patch that does not fix.
+- **`forbidden_paths` now lists `tests/` too:** the agent may run the visible test but not change it, or the
+  cheapest way to make it pass is to edit it.
+- **What is not decided:** in t014, shell characters inside quotes (`grep "a;b" f`) are refused by the reference fix,
+  and no test says whether that is right. Left out of the tests on purpose rather than settled by a guess.
+- **The replay test is tied to the recorded tasks:** it used to run every task of the split, so adding a task would
+  have made it fail with a `CassetteMiss`. It now runs the tasks named in its table.

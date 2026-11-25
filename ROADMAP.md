@@ -54,6 +54,7 @@ Update this file at the end of every working session.
 - **M10 Benchmark v0** Three tasks (`t001`, `t002`, `t006`) that pass the cross-check, `bench/task.py`, `validate_tasks.py`, price table (`bench/pricing.yaml`, `pricing.py`), budget of a run (`prova/agent/budget.py`), workspace, violations, grading, `runner.py`, `product.py`, `report.py`, and `python -m bench.run` (shows the plan and the ceiling; `--confirm` runs). 1161 unit tests, 26 Docker tests. First real run: 2 of 3 resolved, $0.20, 1 seed (`bench/results/2026-11-24T13-55_8979c5.jsonl`). Entries in `LEARNINGS.md`.
 - **M12 Record/replay and trajectory viewer** `prova/llm/cassette.py` (`RecordingClient`, `ReplayClient`, durations of tools left out of the request hash), `bench.run --record`, `bench/cassettes/dev.jsonl` and a Docker test that replays the three tasks (same chain of tool calls, same grades, no API). 1212 unit tests, 30 Docker tests. `bench/view.py` shows a trajectory turn by turn (times from timestamps, cost from the price table, control characters removed). The scheduled CI gate (step 5) is in the backlog. M12b of the plan (comparison with Claude Code) is a different milestone. Entry in `LEARNINGS.md`.
 - **M13 (in progress, core done)** `prova/agent/fingerprint.py`, `prova/agent/feedback.py`, `prova/agent/fixloop.py`: fingerprint of a failure, a few lines of feedback from facts, and the loop with its stop rules (done, stuck, attempts, money, unverifiable, crash, open questions) and its record (state file, `escalations.md`). 1300 unit tests; nothing of it has run with a real agent yet. Entry in `LEARNINGS.md`.
+- **Three tasks with a visible failing test** for M13: `t009_fail_open_review` (a reviewer that cannot be reached or a reply that cannot be read approves), `t011_nightly_reminder` (a nightly job posts its reminder every night and on active issues), `t014_command_allowlist` (only the first word is checked, the shell runs the rest). Each has a test in `repo/tests/` the agent can run, and stricter hidden tests; all pass the cross-check. A fix of only the visible symptom fails 10 (t009), 4 (t011) and 17 (t014) hidden tests. The Docker replay test now runs only the three recorded tasks. 36 Docker tests. Entry in `LEARNINGS.md`.
 - **Act II review** against the anti-pattern checklist (greps + reading): clean except one silent cut in the `whitespace_mismatch` error (fixed, test first, shared `_listed`). 908 unit tests. Entry in `LEARNINGS.md`.
 - **Act I review** against `plans/shared/anti-patterns.md` (14 items, checked with grep): clean, except two docstrings
   that promised more than the code did (`build_app`, `read_file`; fixed), the `LLMError` wrapping decision that was
@@ -67,14 +68,15 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M13 still to do: read the state file to continue a run; wire the loop to the real agent, a sandbox and the files (spends money); the `Goal` that a model writes from an issue (grill -> goal); the measurement, which needs tasks with a test the agent can see (the three of M10 have none, so the loop would end as `unverifiable`).
+- M13 still to do: read the state file to continue a run; wire the loop to the real agent, a sandbox and the files (spends money); the `Goal` that a model writes from an issue (grill -> goal); the measurement (t009, t011 and t014 now have a test the agent can see; the three of M10 have none, so the loop would end there as `unverifiable`).
 
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
+- The hidden tests of t014 do not say whether shell characters inside quotes (`grep "a;b" f`) may run; the reference fix refuses them. Decide before the task is used to compare agents.
 - Decide about `bench/results/`: commit the `.jsonl` results, ignore `bench/results/trajectories/`.
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
-- When the prompt, a tool description or a hook changes: record the cassette again (`bench.run --record`, about $0.20), or the Docker replay test fails with a `CassetteMiss`.
+- When the prompt, a tool description or a hook changes: record the cassette again (`bench.run --record` with `--task` for the three recorded tasks, about $0.20), or the Docker replay test fails with a `CassetteMiss`.
 - Check `bench/pricing.yaml` against the official price page (it was copied from a cached table of 2026-11-03).
 - Use `ruff check . --no-cache` before a commit (the cache hid 4 errors, now fixed).
 - Check `test_command` of the report (it is trusted today), and decide whether the hook mechanisms should try the hook instead of looking for it.
