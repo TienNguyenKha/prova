@@ -70,8 +70,9 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M13 still to do: choose how to exercise the loop (the probe on t015/t016, `bench/results/2026-11-25T16-50_c9a349.jsonl`, was fixed at the first attempt like every task so far): a weaker model, tasks over several files, or stop here; tasks where the first attempt is likely to miss (t009/t011/t014 were all fixed at the first attempt, by the loop and by one run: `bench/results/2026-11-25T16-37_af6aa0.jsonl`, `2026-11-25T16-38_228aff.jsonl`), then a measurement with 3 seeds or more; read the state file to continue a run; the `Goal` that a model writes from an issue (grill -> goal); the measurement (t009, t011 and t014 now have a test the agent can see; the three of M10 have none, so the loop would end there as `unverifiable`).
+- M13 still to do: read the state file to continue a run (D2); the `Goal` that a model writes from an issue (grill -> goal, C). Measuring the loop waits for Act V (see the next line and the Decisions Log).
 
+- Measure the M13 loop (`bench.run --loop`) on tasks where a first attempt misses: none of the tasks so far does, with Sonnet or Haiku. Wait for Act V. See the Decisions Log.
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
 - The hidden tests of t014 do not say whether shell characters inside quotes (`grep "a;b" f`) may run; the reference fix refuses them. Decide before the task is used to compare agents.
@@ -151,3 +152,4 @@ Update this file at the end of every working session.
 | 2026-11-24 | M11 (Benchmark v1) goes to the backlog; M10's three tasks stay the benchmark for now | A benchmark "big enough to trust" is premature before there is something to compare. Pull in only the files a later milestone needs. Cost: milestones that depend on M11 must be checked one by one. |
 | 2026-11-24 | M12 closed without its scheduled CI gate (step 5) | The repo has no CI, and a gate that compares with a baseline needs the bigger benchmark of M11, which is deferred. The local form exists: the Docker replay test fails when a change of the harness moves the chain of tool calls. |
 | 2026-11-24 | The M13 loop is outside the stop hook, keeps the patch between attempts, and is `stuck` after 2 equal fingerprints in a row | The hook already sends the agent back twice with raw output; the loop adds a fresh context, a record and limits. Keeping the patch lets a partial step count. Both numbers are guesses to be measured. |
+| 2026-11-25 | Stop measuring the M13 loop for now; keep it as a safety net | 8 runs with Sonnet and 15 with Haiku (3 seeds) on five tasks with a visible test were all fixed at the first attempt, so the loop could not be shown to help (`bench/results/2026-11-25T16-53_76ecaf.jsonl`). Tasks over several files would cost much more to build; tasks that are hard for real come in Act V. |

@@ -1184,4 +1184,13 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   `is_global` trap. So far 8 real runs on 5 tasks, all fixed at the first attempt: with `claude-sonnet-5-5`, a bug in
   one function with a test that shows it is not enough to exercise the outer loop. Options: a weaker model (does
   the loop bring a cheap model near a strong one?), tasks over several files, or stop measuring the loop here.
+- **Haiku, one run, 3 seeds on the five tasks with a visible test (2026-11-25, $0.078):** 15/15 resolved, about
+  $0.005 a run, some 20 times cheaper than Sonnet for the same result on these tasks (patches somewhat longer than
+  the reference on t014 and t015, all hidden tests passed). Even the cheapest model fixes a bug in one function at
+  the first attempt when a test shows it, so the loop with `--loop` was not run: it could not do better than 15/15.
+- **Decision: measuring the outer loop stops here.** On these tasks the visible test and the `TestsBeforeStop`
+  hook are enough; the loop has shown no value yet and none could be measured. It stays as a safety net (a check
+  before anything is spent, stopping in the right way, a record when it gives up). Measuring it waits for tasks that
+  are hard for real (Act V), where a first attempt misses. The numbers of the loop (4 attempts, stuck after 2) stay
+  guesses.
 
