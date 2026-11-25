@@ -29,6 +29,7 @@ from prova.sandbox.base import Sandbox
 
 CHECK = ("python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests")
 CHECK_TIMEOUT_S = 300.0
+MAX_ATTEMPTS = 4  # a guess, as the stuck rule of the loop is: to be measured
 
 
 class Product(Protocol):
@@ -58,7 +59,7 @@ class Product(Protocol):
 @dataclass(frozen=True, slots=True)
 class LoopAgent:
     product: Product
-    max_attempts: int = 4
+    max_attempts: int = MAX_ATTEMPTS
     seconds: Callable[[], float] = field(default=time.monotonic)
 
     @property

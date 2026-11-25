@@ -3,6 +3,7 @@
   uv run python -m bench.run                      # shows the plan and the most it can cost, runs nothing
   uv run python -m bench.run --confirm            # runs it (calls the API, costs money; needs Docker)
   uv run python -m bench.run --task t001_injection_regex --seeds 3 --confirm
+  uv run python -m bench.run --loop --confirm      # the fix loop instead of one run (see bench.loop_agent)
 
 Spending money is a decision, so without `--confirm` the command only shows what it would do. The most a run
 can cost is the money limit of its task: a limit is checked between turns, so a run can end over it by the
@@ -20,6 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from bench.loop_agent import MAX_ATTEMPTS, LoopAgent
 from bench.pricing import PricingError, load_price_table
 from bench.product import make_agent
 from bench.report import load_results, render
@@ -32,7 +34,8 @@ from prova.llm.client import LLMClient, make_client
 
 BENCH = Path(__file__).resolve().parent
 TASKS = BENCH / "tasks"
-Execute = Callable[[list[Path], int, Path | None], int]  # (task folders, seeds, cassette) -> exit code
+# (task folders, seeds, cassette, the fix loop or one run) -> exit code
+Execute = Callable[[list[Path], int, Path | None, bool], int]
 
 
 class RunError(Exception):
@@ -61,13 +64,23 @@ def new_run_id(now: datetime) -> str:
     return f"{now:%Y-%m-%dT%H-%M}_{secrets.token_hex(3)}"
 
 
-def _plan(folders: list[Path], seeds: int, ceiling: float, record: Path | None) -> str:
+def _plan(folders: list[Path], seeds: int, ceiling: float, record: Path | None, loop: bool) -> str:
     names = "\n".join(f"  - {folder.name}" for folder in folders)
-    plan = (
-        f"{len(folders)} task(s) x {seeds} seed(s) = {len(folders) * seeds} run(s):\n{names}\n"
-        f"the most this can cost: ${ceiling:.2f} (the money limit of each task, for each run)"
-    )
-    return plan + (f"\nthe model's answers will be recorded in {record}" if record else "")
+    lines = [
+        f"{len(folders)} task(s) x {seeds} seed(s) = {len(folders) * seeds} run(s):\n{names}",
+        f"the most this can cost: ${ceiling:.2f} (the money limit of each task, for each run)",
+    ]
+    if loop:
+        lines.append(f"agent: the fix loop, up to {MAX_ATTEMPTS} attempts that share the budget of the task")
+        blind = [f.name for f in folders if not (f / "repo" / "tests").is_dir()]
+        if blind:
+            why = "no test the agent can run, so it ends as unverifiable before any money is spent"
+            lines.append(f"{why}: {', '.join(blind)}")
+    else:
+        lines.append("agent: one run of the product")
+    if record:
+        lines.append(f"the model's answers will be recorded in {record}")
+    return "\n".join(lines)
 
 
 def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None) -> int:
@@ -76,6 +89,7 @@ def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None)
     parser.add_argument("--task", action="append", default=[], help="a task to run (default: all)")
     parser.add_argument("--seeds", type=_at_least_one, default=1)
     parser.add_argument("--record", type=Path, help="write the model's answers to this new cassette file")
+    parser.add_argument("--loop", action="store_true", help="run the fix loop instead of one run")
     parser.add_argument("--confirm", action="store_true", help="really run: calls the API, costs money")
     args = parser.parse_args(argv)
     try:
@@ -87,11 +101,11 @@ def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None)
     if args.record is not None and args.record.exists():
         print(f"error: {args.record} already exists: a cassette is written once, never added to")  # noqa: T201
         return 1
-    print(_plan(folders, args.seeds, ceiling, args.record))  # noqa: T201
+    print(_plan(folders, args.seeds, ceiling, args.record, args.loop))  # noqa: T201
     if not args.confirm:
         print("nothing was run. Add --confirm to run it.")  # noqa: T201
         return 0
-    return (execute or _execute)(folders, args.seeds, args.record)
+    return (execute or _execute)(folders, args.seeds, args.record, args.loop)
 
 
 def _at_least_one(text: str) -> int:
@@ -104,7 +118,7 @@ def _at_least_one(text: str) -> int:
 # -- the real run: needs the API and Docker, so it has no unit test; the parts it joins have ----------
 
 
-def _execute(folders: list[Path], seeds: int, record: Path | None) -> int:
+def _execute(folders: list[Path], seeds: int, record: Path | None, loop: bool) -> int:
     from prova.app import build_app
     from prova.config import load_settings
     from prova.errors import ContractError, SandboxUnavailableError
@@ -116,7 +130,7 @@ def _execute(folders: list[Path], seeds: int, record: Path | None) -> int:
     try:
         table = load_price_table(BENCH / "pricing.yaml")
         pricing = table.pricing_for(settings.model)
-        agent = make_agent(
+        product = make_agent(
             app=build_app(settings, llm=_llm(settings, record)),
             profiles=load_profiles(root / "permissions.yaml"),
             root=root,
@@ -127,6 +141,7 @@ def _execute(folders: list[Path], seeds: int, record: Path | None) -> int:
     except (PricingError, ContractError) as e:
         print(f"error: the run does not start: {e}")  # noqa: T201
         return 1
+    agent = LoopAgent(product) if loop else product
 
     run_id = new_run_id(datetime.now(UTC))
     results = BENCH / "results" / f"{run_id}.jsonl"

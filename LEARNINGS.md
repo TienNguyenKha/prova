@@ -1150,4 +1150,6 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   attempt. The turns are now numbered again when added.
 - **One check is done twice on purpose:** money is stopped by what is left of the budget before an attempt and by
   the goal's `max_usd` after it; a mutation of the second survives because the first catches it first.
-
+- **`bench.run --loop`:** the plan says which agent runs, and names the tasks with no visible test, which end
+  as `unverifiable` before any money is spent. The ceiling does not change, since the attempts share the money
+  limit of the task. `MAX_ATTEMPTS = 4` is a guess, like the stuck rule.
