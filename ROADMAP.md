@@ -69,7 +69,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M13 still to do: a real run of `bench.run --loop` and of one run on t009, t011, t014 (spends money; `--loop` exists, its plan names the tasks with no visible test); read the state file to continue a run; the `Goal` that a model writes from an issue (grill -> goal); the measurement (t009, t011 and t014 now have a test the agent can see; the three of M10 have none, so the loop would end there as `unverifiable`).
+- M13 still to do: tasks where the first attempt is likely to miss (t009/t011/t014 were all fixed at the first attempt, by the loop and by one run: `bench/results/2026-11-25T16-37_af6aa0.jsonl`, `2026-11-25T16-38_228aff.jsonl`), then a measurement with 3 seeds or more; read the state file to continue a run; the `Goal` that a model writes from an issue (grill -> goal); the measurement (t009, t011 and t014 now have a test the agent can see; the three of M10 have none, so the loop would end there as `unverifiable`).
 
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)

@@ -1153,3 +1153,11 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **`bench.run --loop`:** the plan says which agent runs, and names the tasks with no visible test, which end
   as `unverifiable` before any money is spent. The ceiling does not change, since the attempts share the money
   limit of the task. `MAX_ATTEMPTS = 4` is a guess, like the stuck rule.
+- **First real run of the loop (2026-11-25, 1 seed, t009/t011/t014):** the loop resolved 3/3 at its first attempt
+  ($0.287); one run of the product also resolved 3/3 ($0.239). The pipeline works end to end (check before, real
+  agent in Docker, check after, state files), but the loop was never tested: the visible test and the
+  `TestsBeforeStop` hook are enough for the agent to fix these tasks by itself. The hidden tests caught no
+  overfitting because there was none: on t014 both runs refused every shell character, not only `;`, and the agent
+  wrote in its assumptions the very question left open (characters inside quotes are refused on purpose). To
+  measure the loop it needs tasks where the first attempt is likely to miss, and 3 seeds or more.
+
