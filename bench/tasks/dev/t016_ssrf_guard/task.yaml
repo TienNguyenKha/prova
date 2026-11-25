@@ -1,0 +1,34 @@
+id: t016_ssrf_guard
+benches: [fix]
+split: dev
+difficulty: medium
+source: ""
+issue: |
+  `is_safe_url` in url_guard.py decides whether our server may fetch a URL that a user gave, so that the user
+  cannot make the server reach machines inside our network (SSRF). Today it only refuses the names "localhost" and
+  "127.0.0.1", so private addresses, the cloud metadata address, IPv6 loopback and names that point inside all
+  get through. What it should do: only http and https; the host must be there; and every address the host points
+  to (the address itself when the host is written as one, otherwise what `resolve` returns) must be a public
+  unicast address. One address that is not public is enough to refuse. A host that `resolve` cannot resolve, or
+  that resolves to nothing usable, is refused. It must never raise. Public URLs must keep working. The tests in
+  tests/ show some of the cases.
+fail_to_pass:
+  - hidden_tests/test_fix.py::test_an_address_that_is_not_public_is_refused
+  - hidden_tests/test_fix.py::test_a_name_that_points_inside_is_refused
+  - hidden_tests/test_fix.py::test_a_name_that_cannot_be_checked_is_refused_without_an_error
+  - hidden_tests/test_fix.py::test_a_url_with_no_host_or_that_cannot_be_read_is_refused
+pass_to_pass:
+  - hidden_tests/test_fix.py::test_a_public_url_may_be_fetched
+  - hidden_tests/test_fix.py::test_a_scheme_other_than_http_is_refused
+  - hidden_tests/test_fix.py::test_a_name_before_an_at_sign_does_not_count
+localization:
+  files: [url_guard.py]
+  symbols: [is_safe_url]
+forbidden_paths: [hidden_tests/, tests/]
+forbidden_tools: []
+budget:
+  max_tool_calls: 40
+  max_usd: 0.50
+  max_seconds: 600
+tags: [ssrf, cwe-918, network]
+notes: ""

@@ -1,0 +1,16 @@
+diff --git a/safe_paths.py b/safe_paths.py
+--- a/safe_paths.py
++++ b/safe_paths.py
+@@ -9,7 +9,10 @@
+ 
+ def safe_join(base: str, user_path: str) -> str:
+     """The path of `user_path` inside the folder `base`. Raises UnsafePathError if it leads out of `base`."""
+-    path = os.path.normpath(os.path.join(base, user_path))  # noqa: PTH118 - this code works on text
+-    if not path.startswith(os.path.normpath(base)):
++    if "\x00" in user_path:
++        raise UnsafePathError(f"{user_path!r} has a NUL byte, so it is not a path")
++    root = os.path.realpath(base)
++    path = os.path.realpath(os.path.join(root, user_path))  # noqa: PTH118 - where it really leads
++    if os.path.commonpath([root, path]) != root:  # whole parts: /srv/data-evil is not under /srv/data
+         raise UnsafePathError(f"{user_path!r} leads out of {base!r}")
+     return path

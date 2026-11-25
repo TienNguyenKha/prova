@@ -1161,3 +1161,21 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   wrote in its assumptions the very question left open (characters inside quotes are refused on purpose). To
   measure the loop it needs tasks where the first attempt is likely to miss, and 3 seeds or more.
 
+## M13 (in progress): two harder tasks, path traversal and SSRF
+
+- **For the outer loop to loop, the visible test must be hard to make green:** the loop's check is the visible
+  test, and inside an attempt the `TestsBeforeStop` hook already sends the agent back twice. So a task is hard for
+  the loop only if a likely first fix leaves the visible test red. t015 (path traversal, CWE-22) is built that way:
+  a fix of only the sibling folder (`startswith(root + os.sep)`) or of only the links (`realpath` with
+  `startswith`) leaves one visible test red. t016 (SSRF, CWE-918) is not: the usual wrong fixes (`is_global` alone,
+  or `is_private or is_loopback or is_link_local or is_reserved`) make every visible test green and fail only hidden
+  ones (multicast `224.0.0.1`, CGNAT `100.64.0.1`). t016 measures the quality of a fix, not the loop.
+- **`ipaddress.is_global` is not "safe to fetch":** on Python 3.12 it is True for multicast `224.0.0.1` and for
+  NAT64 `64:ff9b::7f00:1` (which reaches 127.0.0.1). Checked before writing the hidden tests; the NAT64 case is left
+  out because what is right there is not clear.
+- **Fairness of hidden tests:** the NUL byte of t015 was added to the issue, since nothing in it said such a path
+  must be refused. The cross-check of t016 found a line of the reference patch that no hidden test ran (the
+  `ValueError` of `urlparse` on `http://[::1/`); a test was added, as the issue says the function must never raise.
+- **DNS is handed in:** the hidden tests of t016 give a fake `resolve` that does what `getaddrinfo` does with
+  `2130706433` or `0x7f.0.0.1`, so the tests need no network, like every PoC of the project.
+

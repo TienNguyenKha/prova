@@ -1,0 +1,35 @@
+id: t015_path_traversal
+benches: [fix]
+split: dev
+difficulty: medium
+source: ""
+issue: |
+  `safe_join` in safe_paths.py joins a path sent by a user to a base folder, and must refuse (raise
+  UnsafePathError) any path that would let the user reach a file outside that folder. Today it compares text:
+  a folder next to the base whose name starts the same (`/srv/data-evil` next to `/srv/data`) gets through,
+  and so does a link inside the base that points out of it. What counts is where the path really leads once
+  `..` and links are followed: if that is the base or under it, the path is returned; if not, it is refused. A
+  path that does not exist yet but would be inside is fine. A text that cannot be a path (it has a NUL byte) is
+  refused too. Paths that work today must keep working. The tests in
+  tests/ show the two cases.
+fail_to_pass:
+  - hidden_tests/test_fix.py::test_a_folder_next_to_the_base_with_the_same_start_is_outside
+  - hidden_tests/test_fix.py::test_a_link_that_points_out_of_the_base_is_refused
+  - hidden_tests/test_fix.py::test_a_path_with_a_nul_byte_is_refused
+pass_to_pass:
+  - hidden_tests/test_fix.py::test_a_path_that_goes_up_out_of_the_base_is_refused
+  - hidden_tests/test_fix.py::test_a_path_inside_the_base_is_joined_even_if_it_does_not_exist_yet
+  - hidden_tests/test_fix.py::test_the_base_itself_is_inside
+  - hidden_tests/test_fix.py::test_a_link_that_stays_inside_the_base_is_followed
+  - hidden_tests/test_fix.py::test_a_refused_path_raises_an_error_that_is_a_value_error
+localization:
+  files: [safe_paths.py]
+  symbols: [safe_join]
+forbidden_paths: [hidden_tests/, tests/]
+forbidden_tools: []
+budget:
+  max_tool_calls: 40
+  max_usd: 0.50
+  max_seconds: 600
+tags: [path-traversal, cwe-22, symlink]
+notes: ""
