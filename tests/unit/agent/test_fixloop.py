@@ -56,6 +56,7 @@ class Rig:
         self.checks = list(checks)
         self.prompts: list[str] = []
         self.verified = 0
+        self.initial: Verification | Exception = RED_EQ  # what the check says before the first attempt
         self.escalations = tmp_path / "escalations.md"
         self.state = tmp_path / "state" / "loop.json"
         self.agent: Callable[[int], AttemptRun] = lambda n: AttemptRun("done", "", usage())
@@ -68,6 +69,10 @@ class Rig:
 
     def verify(self) -> Verification:
         self.verified += 1
+        if self.verified == 1:
+            if isinstance(self.initial, Exception):
+                raise self.initial
+            return self.initial
         return self.checks.pop(0) if len(self.checks) > 1 else self.checks[0]
 
     def run(self, the_goal: Goal | None = None, redactor: Redactor | None = None) -> LoopResult:
@@ -256,6 +261,77 @@ def test_an_agent_that_crashes_ends_in_an_escalation_that_keeps_the_lessons_so_f
     result = r.run()
     assert (result.status, result.reason, result.attempts) == ("escalated", "error", 2)
     assert "the API went away" in result.detail and len(result.lessons) == 1
+
+
+def test_a_check_that_cannot_run_ends_in_an_escalation_that_keeps_the_record_and_the_money(
+    rig: Callable[..., Rig],
+) -> None:
+    r = rig(RED_EQ)
+    checks = [RED_EQ, RED_EQ]  # before the first attempt, and after it
+
+    def verify_then_fail() -> Verification:
+        if not checks:
+            raise RuntimeError("the sandbox is gone")
+        return checks.pop()
+
+    r.verify = verify_then_fail
+    result = r.run()
+    assert (result.status, result.reason, result.attempts) == ("escalated", "error", 2)
+    assert "the sandbox is gone" in result.detail and len(result.lessons) == 1
+    assert result.cost_usd == pytest.approx(2 * PRICING.cost(usage()))  # the second attempt was paid for
+    assert r.saved()["reason"] == "error" and "| error |" in r.escalations.read_text(encoding="utf-8")
+
+
+def test_an_attempt_that_ran_out_of_budget_ends_the_loop_unless_the_check_passes(
+    rig: Callable[..., Rig],
+) -> None:
+    r = rig(RED_EQ, RED_KEY)
+    r.agent = lambda n: AttemptRun("budget", "the run cost $0.51", usage())
+    result = r.run()
+    assert (result.status, result.reason, result.attempts) == ("escalated", "budget", 1)
+    assert "the run cost $0.51" in result.detail and len(result.lessons) == 1
+    passed = rig(PASSED)
+    passed.agent = lambda n: AttemptRun("budget", "out", usage())
+    assert passed.run().status == "done"  # what it left behind is what counts
+
+
+# --- the check before the first attempt ---------------------------------------------------------------
+
+
+def test_a_check_that_finds_no_test_before_any_change_stops_the_loop_before_it_spends(
+    rig: Callable[..., Rig],
+) -> None:
+    r = rig(PASSED)
+    r.initial = NO_TESTS
+    result = r.run()
+    assert (result.status, result.reason, result.attempts, r.prompts) == ("escalated", "unverifiable", 0, [])
+    assert result.cost_usd == 0 and r.saved()["reason"] == "unverifiable"
+    assert "| unverifiable |" in r.escalations.read_text(encoding="utf-8")
+
+
+def test_a_goal_already_met_before_any_change_is_done_with_no_attempt(rig: Callable[..., Rig]) -> None:
+    r = rig(RED_EQ)
+    r.initial = PASSED
+    result = r.run()
+    assert (result.status, result.reason, result.attempts, r.prompts) == ("done", None, 0, [])
+
+
+def test_a_check_that_cannot_run_before_the_first_attempt_is_an_error(rig: Callable[..., Rig]) -> None:
+    r = rig(PASSED)
+    r.initial = RuntimeError("no docker")
+    result = r.run()
+    assert (result.status, result.reason, result.attempts, r.prompts) == ("escalated", "error", 0, [])
+    assert "no docker" in result.detail
+
+
+@pytest.mark.parametrize("code", [0, 5])
+def test_a_check_before_the_first_attempt_that_ran_out_of_time_decides_nothing(
+    rig: Callable[..., Rig], code: int
+) -> None:
+    r = rig(PASSED)
+    r.initial = Verification(exit_code=code, output="", timed_out=True)
+    result = r.run()
+    assert (result.status, result.attempts, len(r.prompts)) == ("done", 1, 1)
 
 
 def test_a_goal_with_open_questions_is_not_attempted_it_is_escalated(rig: Callable[..., Rig]) -> None:

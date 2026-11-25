@@ -99,6 +99,17 @@ def run_fix_loop(  # noqa: PLR0913 - everything the loop needs, named
     if goal.open_questions:
         return finish("escalated", "open_questions", 0, "; ".join(goal.open_questions))
 
+    # The check is run once before anything is spent: one that finds no test, or a goal already met, needs no
+    # attempt. A check that ran out of time here decides nothing.
+    try:
+        first = verify()
+    except Exception as e:  # noqa: BLE001 - a check that cannot run is not a result; the record is kept
+        return finish("escalated", "error", 0, f"the check could not run: {type(e).__name__}: {e}")
+    if not first.timed_out and first.exit_code == _EXIT_NO_TESTS:
+        return finish("escalated", "unverifiable", 0, "the check found no test to run, before any change")
+    if not first.timed_out and first.exit_code == _EXIT_PASSED:
+        return finish("done", None, 0, "the goal was already met before any attempt")
+
     feedback: str | None = None
     for number in range(1, goal.max_attempts + 1):
         before = read_files()
@@ -114,7 +125,10 @@ def run_fix_loop(  # noqa: PLR0913 - everything the loop needs, named
         except ValueError as e:  # a price for what was used is not known: the money limit cannot be kept
             cost, why_unknown = None, str(e)
 
-        check = verify()
+        try:
+            check = verify()
+        except Exception as e:  # noqa: BLE001 - a check that cannot run is not a result; the record is kept
+            return finish("escalated", "error", number, f"the check could not run: {type(e).__name__}: {e}")
         if check.exit_code == _EXIT_PASSED and not check.timed_out:
             return finish("done", None, number)
         if check.exit_code == _EXIT_NO_TESTS and not check.timed_out:
@@ -129,6 +143,8 @@ def run_fix_loop(  # noqa: PLR0913 - everything the loop needs, named
             return finish(
                 "escalated", "budget", number, f"${cost:.4f} spent, over the limit of ${goal.max_usd:.4f}"
             )
+        if run.status == "budget":  # the budget is the loop's: what one attempt used up is gone for the next
+            return finish("escalated", "budget", number, f"the attempt ran out of budget: {run.detail}")
         if _is_stuck(lessons):
             return finish(
                 "escalated",

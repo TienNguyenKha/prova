@@ -16,7 +16,7 @@ from typing import Any
 from bench.runner import AgentRun
 from bench.task import Task
 from prova.agent.budget import Budget, Pricing
-from prova.agent.loop import run_agent
+from prova.agent.loop import AgentResult, run_agent
 from prova.app import App
 from prova.contract import VerifyContext, check_contract, load_contract
 from prova.harness.hooks import Hooks, hook_name
@@ -60,22 +60,42 @@ class ProductAgent:
             pricing=self.pricing,
         )
         with self.open_sandbox(workspace) as sandbox:  # closed whatever the run does
-            ctx = RunContext.from_profile(self.profile, workspace, strict=True, sandbox=sandbox)
-            result = run_agent(
+            result = self.attempt(
                 render_user_context(task.issue),  # the issue is data from somebody else: it goes in a tag
-                llm=self.app.llm,
-                tools=self.app.tools,
-                ctx=ctx,
-                settings=self.app.settings,
-                system=self.system,
-                prompt_hash=self.prompt_hash,
-                max_iterations=MAX_ITERATIONS,
-                trajectory=writer,
-                redactor=redactor,
-                hooks=_hooks(),
+                sandbox=sandbox,
+                workspace=workspace,
+                writer=writer,
                 budget=budget,
+                redactor=redactor,
             )
         return AgentRun(status=result.status, detail=result.detail, usage=result.usage)
+
+    def attempt(  # noqa: PLR0913 - one run of the product, everything named
+        self,
+        prompt: str,
+        *,
+        sandbox: Sandbox,
+        workspace: Path,
+        writer: TrajectoryWriter,
+        budget: Budget,
+        redactor: Redactor,
+    ) -> AgentResult:
+        """One run of the product's loop on `prompt`, in a sandbox and a workspace that the caller opened."""
+        ctx = RunContext.from_profile(self.profile, workspace, strict=True, sandbox=sandbox)
+        return run_agent(
+            prompt,
+            llm=self.app.llm,
+            tools=self.app.tools,
+            ctx=ctx,
+            settings=self.app.settings,
+            system=self.system,
+            prompt_hash=self.prompt_hash,
+            max_iterations=MAX_ITERATIONS,
+            trajectory=writer,
+            redactor=redactor,
+            hooks=_hooks(),
+            budget=budget,
+        )
 
 
 def make_agent(  # noqa: PLR0913 - everything the product needs, named

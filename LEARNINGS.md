@@ -1130,3 +1130,24 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   and no test says whether that is right. Left out of the tests on purpose rather than settled by a guess.
 - **The replay test is tied to the recorded tasks:** it used to run every task of the split, so adding a task would
   have made it fail with a `CassetteMiss`. It now runs the tasks named in its table.
+
+## M13 (in progress): the loop as a benchmark agent
+
+- **The loop is another agent for the same runner:** `bench/loop_agent.py` has the shape of the product's agent
+  (`(task, workspace, trajectory) -> AgentRun`) and wraps the product's own run (`ProductAgent.attempt`). The runner,
+  the grading and the result line are the same, so "one run" and "the loop" can be compared on the same tasks.
+- **The budget of the task is the loop's:** each attempt gets what the attempts before it left (money, tool calls,
+  seconds). Giving each attempt the whole budget would let the loop win by spending more. An attempt that ends with
+  `budget` while the check is still red ends the loop.
+- **The check runs once before the first attempt:** a task with no test the agent can run (exit 5) ends as
+  `unverifiable` before a cent is spent, and a goal already met needs no attempt. A check that ran out of time there
+  decides nothing. A check that cannot run, before or after an attempt, ends the loop as `error` and keeps the record
+  (before, an exception in the check escaped the loop and the state file was not written).
+- **The files are read without following links:** the diff of an attempt goes into the next prompt, so a link made
+  by the agent to a file of the host would have put that file in front of the model.
+- **Found with fakes, before any money:** every attempt counts its turns from 1 and `UsageLog` wants them to go up,
+  so adding the usage of two attempts raised `ValueError` and would have ended every loop as `error` at its second
+  attempt. The turns are now numbered again when added.
+- **One check is done twice on purpose:** money is stopped by what is left of the budget before an attempt and by
+  the goal's `max_usd` after it; a mutation of the second survives because the first catches it first.
+
