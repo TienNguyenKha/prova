@@ -1178,4 +1178,10 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   `ValueError` of `urlparse` on `http://[::1/`); a test was added, as the issue says the function must never raise.
 - **DNS is handed in:** the hidden tests of t016 give a fake `resolve` that does what `getaddrinfo` does with
   `2130706433` or `0x7f.0.0.1`, so the tests need no network, like every PoC of the project.
+- **Cheap probe on t015 and t016 (2026-11-25, one run, 1 seed, $0.20):** both resolved at the first attempt, the
+  first test run green, the stop hook never sent the agent back. On t015 the agent wrote the reference fix
+  (`realpath` and `commonpath`); on t016 it passed the multicast and CGNAT hidden tests, so it did not fall in the
+  `is_global` trap. So far 8 real runs on 5 tasks, all fixed at the first attempt: with `claude-sonnet-5-5`, a bug in
+  one function with a test that shows it is not enough to exercise the outer loop. Options: a weaker model (does
+  the loop bring a cheap model near a strong one?), tasks over several files, or stop measuring the loop here.
 
