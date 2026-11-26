@@ -71,6 +71,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
+- Act V S1 (in progress; done: `KbDoc` and the CWE reader for schema 8.0, `src/prova/security/kb/`; next: immutable snapshots, fetching with a fake download in the tests, `prova kb sync --source cwe` with one real download).
 - M14 (in progress; done: the cases, `bench/review/cases.yaml`, 8 good and 10 bad patches checked against the hidden tests, the `adversary` profile and its stop hook `AttacksWrittenBeforeStop`, its contract (`contract/adversary/`) and role in `make_agent`, `bench/reviewers.py` (`NoReviewer`, `SelfReviewer` in words with the fix system prompt, `AdversaryReviewer` whose verdict the harness reads from the attack tests), `extract(usage=...)`, `bench.review` (summary with SEM, the rubber-stamp warning, the disagreements of self-review and adversary); next: a real run): reviewer, self-check or adversarial. Risk to watch from M13b: the reproduction phase shares the task's budget and once used 31 of t006's 40 tool calls.
 
 - Measure the M13 loop (`bench.run --loop`) on tasks where a first attempt misses: none of the tasks so far does, with Sonnet or Haiku. Wait for Act V. See the Decisions Log.

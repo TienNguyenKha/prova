@@ -1300,3 +1300,20 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   (`task_prompts`), next to the hash of the system prompt. Done before the real run of M14, so its results can be
   tied to the words used.
 
+## Act V, S1 (in progress): the knowledge base starts with CWE
+
+- **Checked at the source before writing:** CWE 5.0 with schema 8.0 (namespace `http://cwe.mitre.org/cwe-8`) came
+  out on 2026-10-28, with a 4.21 release on schema 7.4 the same day. The download page offers XML only (no JSON,
+  though the plan said so), and no checksum or version file: a new release is seen by reading the `Version` of
+  `cwec_latest.xml.zip`. In schema 8.0, `Scope` and `Impact` of a consequence are child elements, and
+  `Mapping_Notes` and `Content_History` are required. Part of what the XSD says was read only as a summary; the
+  first real download checks it.
+- **The XML is data from outside:** it is parsed with `defusedxml` (entity declarations and external references
+  are refused), and any namespace but the one of schema 8.0 stops the read and names it.
+- **`content_hash` covers what an entry says, not the version of the catalog:** a release that leaves an entry
+  alone leaves its hash alone, so it will not be embedded again. `KbDoc` got a `metadata` field the plan forgot:
+  what a doc is filtered by (abstraction, languages) is kept apart from its text.
+- **A sample written by hand can hide a bug:** paragraphs in the sample were separated by the XML's own line
+  breaks, so splitting on XHTML blocks could be removed without a test noticing. A test with `<p>A</p><p>B</p>`
+  written one after the other now holds it.
+

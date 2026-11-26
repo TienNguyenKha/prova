@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Weakness_Catalog xmlns="http://cwe.mitre.org/cwe-8" xmlns:xhtml="http://www.w3.org/1999/xhtml"
+                  Name="CWE" Version="5.0" Date="2026-10-28">
+  <Weaknesses>
+    <Weakness ID="918" Name="Server-Side Request Forgery (SSRF)" Abstraction="Base" Structure="Simple" Status="Incomplete">
+      <Description>The web server receives a URL or similar request from an upstream component and retrieves the contents of this URL, but it does not sufficiently ensure that the request is being sent to the expected destination.</Description>
+      <Extended_Description>
+        <xhtml:p>By providing URLs to unexpected hosts or ports, attackers can make it appear that the server is sending the request.</xhtml:p>
+        <xhtml:p>This can be used to   bypass   access controls.</xhtml:p>
+      </Extended_Description>
+      <Related_Weaknesses>
+        <Related_Weakness Nature="ChildOf" CWE_ID="441" View_ID="1000" Ordinal="Primary"/>
+        <Related_Weakness Nature="ChildOf" CWE_ID="441" View_ID="1003"/>
+        <Related_Weakness Nature="CanPrecede" CWE_ID="610" View_ID="1000"/>
+      </Related_Weaknesses>
+      <Applicable_Platforms>
+        <Language Class="Not Language-Specific" Prevalence="Undetermined"/>
+        <Technology Class="Web Server" Prevalence="Undetermined"/>
+      </Applicable_Platforms>
+      <Common_Consequences>
+        <Consequence>
+          <Scope>Confidentiality</Scope>
+          <Scope>Integrity</Scope>
+          <Impact>Read Application Data</Impact>
+          <Note><xhtml:p>The server can reach internal hosts.</xhtml:p></Note>
+        </Consequence>
+      </Common_Consequences>
+      <Potential_Mitigations>
+        <Mitigation Mitigation_ID="MIT-1">
+          <Phase>Implementation</Phase>
+          <Strategy>Input Validation</Strategy>
+          <Description><xhtml:p>Resolve the host and refuse private, loopback and link-local addresses.</xhtml:p></Description>
+        </Mitigation>
+      </Potential_Mitigations>
+      <Demonstrative_Examples>
+        <Demonstrative_Example>
+          <Intro_Text>The code fetches any URL it is given.</Intro_Text>
+          <Example_Code Nature="Bad" Language="Python">
+            <xhtml:div>url = request.args["url"]<xhtml:br/>if len(url) &lt; 2048:<xhtml:br/><xhtml:div style="margin-left:1em;">requests.get(url)</xhtml:div></xhtml:div>
+          </Example_Code>
+          <Body_Text>An attacker can pass http://169.254.169.254/ to reach the metadata service.</Body_Text>
+        </Demonstrative_Example>
+      </Demonstrative_Examples>
+      <Related_Attack_Patterns>
+        <Related_Attack_Pattern CAPEC_ID="664"/>
+      </Related_Attack_Patterns>
+      <Mapping_Notes><Usage>Allowed</Usage></Mapping_Notes>
+      <Content_History><Submission><Submission_Date>2012-05-11</Submission_Date></Submission></Content_History>
+    </Weakness>
+    <Weakness ID="79" Name="Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')" Abstraction="Base" Structure="Simple" Status="Stable">
+      <Description>The product does not neutralize user input before it is placed in a web page.</Description>
+      <Applicable_Platforms>
+        <Language Name="JavaScript" Prevalence="Often"/>
+        <Language Name="PHP" Prevalence="Often"/>
+      </Applicable_Platforms>
+      <Mapping_Notes><Usage>Allowed</Usage></Mapping_Notes>
+      <Content_History><Submission><Submission_Date>2006-07-19</Submission_Date></Submission></Content_History>
+    </Weakness>
+    <Weakness ID="1" Name="DEPRECATED: Location" Abstraction="Class" Structure="Simple" Status="Deprecated">
+      <Description>This entry has been deprecated.</Description>
+      <Mapping_Notes><Usage>Prohibited</Usage></Mapping_Notes>
+      <Content_History><Submission><Submission_Date>2006-07-19</Submission_Date></Submission></Content_History>
+    </Weakness>
+  </Weaknesses>
+</Weakness_Catalog>
