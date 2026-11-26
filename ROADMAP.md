@@ -84,7 +84,6 @@ Update this file at the end of every working session.
 - Check `bench/pricing.yaml` against the official price page (it was copied from a cached table of 2026-11-03).
 - Use `ruff check . --no-cache` before a commit (the cache hid 4 errors, now fixed).
 - Check `test_command` of the report (it is trusted today), and decide whether the hook mechanisms should try the hook instead of looking for it.
-- `ruff format --check src tests` finds 6 files formatted before the current rules (`src/prova/app.py`, `src/prova/harness/trajectory.py`, four tests): format them in a commit of their own.
 - Decide whether the tests that start real MCP servers (about 20 s of the default run) get the `slow` marker.
 - Sandbox for MCP servers written by others (needs interactive stdin in `DockerSandbox`); before M21.
 - See a real model get sent back by the stop hook (needs a task where a fix is not obviously complete).

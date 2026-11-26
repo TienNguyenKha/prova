@@ -205,4 +205,3 @@ def test_a_stop_hook_that_fails_keeps_the_run_going_because_nothing_was_verified
 def test_a_deny_at_stop_is_taken_as_keep_going(ctx: RunContext) -> None:
     verdict = run_hooks((Recorder("gate", HookDecision.deny("not yet")),), stop(ctx))
     assert verdict.blocked and verdict.message == "not yet"
-

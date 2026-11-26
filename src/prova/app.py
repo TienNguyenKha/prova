@@ -23,9 +23,7 @@ class App:
     # TODO(M7): sandbox. TODO(M8): hooks. TODO(M8b): mcp. TODO(S1): kb. TODO(S3): scanners.
 
 
-def build_app(
-    settings: Settings, *, llm: LLMClient | None = None, extra_tools: Sequence[Tool] = ()
-) -> App:
+def build_app(settings: Settings, *, llm: LLMClient | None = None, extra_tools: Sequence[Tool] = ()) -> App:
     """Use the given `llm` (tests pass a fake) or build the real client, register the tools, wire the App.
 
     `extra_tools` are tools that come from outside and are already alive, such as those of MCP servers

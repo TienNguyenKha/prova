@@ -91,9 +91,7 @@ class TrajectoryWriter:
     """Appends events to a JSONL file. The file is opened, written and closed again for each event, so an
     event is in the file when `write` returns: a crash cannot lose it, and no handle can be left open."""
 
-    def __init__(
-        self, path: Path, *, run_id: str, clock: Callable[[], datetime], redactor: Redactor
-    ) -> None:
+    def __init__(self, path: Path, *, run_id: str, clock: Callable[[], datetime], redactor: Redactor) -> None:
         self._path = path
         self._run_id = run_id
         self._clock = clock

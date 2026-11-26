@@ -144,4 +144,3 @@ def test_an_extra_tool_cannot_take_the_name_of_a_built_in_one(settings: Settings
 
     with pytest.raises(DuplicateNameError):
         build_app(settings, llm=FakeLLM(), extra_tools=[Impostor()])
-

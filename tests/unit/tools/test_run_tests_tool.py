@@ -56,9 +56,7 @@ def test_the_tool_needs_the_exec_permission_and_is_hidden_without_it() -> None:
 def test_the_command_is_fixed_and_runs_in_the_workspace_mount(root: Path) -> None:
     sandbox = FakeSandbox(done(0, "1 passed"))
     run_tool(root, sandbox)
-    assert sandbox.calls == [
-        {"argv": PYTEST, "timeout_s": 120.0, "cwd": "/work"}
-    ]
+    assert sandbox.calls == [{"argv": PYTEST, "timeout_s": 120.0, "cwd": "/work"}]
 
 
 def test_the_timeout_can_be_set_when_the_tool_is_made(root: Path) -> None:
