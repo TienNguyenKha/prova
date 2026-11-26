@@ -4,6 +4,13 @@ Every change to a file of the prompt is written here with the reason. The hash o
 `prova.prompts.render`) goes into every trajectory, so a result can always be tied to the prompt it ran with.
 From Act III on, a change also records the benchmark result before and after.
 
+## 2026-11-26: rule 2 of the contract, reproduction tests are not to be changed (M13b)
+
+- `contract/AGENTS.md`: a new rule 2, "Do not change the reproduction tests in repro/. Make them pass by fixing
+  the code." It is enforced by the `fix` profile (`repro/**` is in its write deny-list), like rule 1; the rules
+  after it move down by one. Benchmark: not measured, the change only adds a rule the permissions already enforce.
+  The cassette of the replay test is recorded again, since the system prompt is part of every request.
+
 ## 2026-11-24: the first version, in layers
 
 - `20-instructions.md`, `30-tool-policy.md`: the prompt was a string typed into each script, and it never said how

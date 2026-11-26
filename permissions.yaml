@@ -11,4 +11,11 @@ profiles:
     deny_paths: [".git/**", "hidden_tests/**"]
     # Tests can be read but never written: a fix that edits the test to make it pass is not a fix.
     # A name without a slash matches at any depth, so these also cover tests in a subfolder.
-    write_deny_paths: ["**/tests/**", "test_*.py", "*_test.py", "conftest.py"]
+    write_deny_paths: ["**/tests/**", "test_*.py", "*_test.py", "conftest.py", "repro/**"]
+    # repro/ holds the reproduction tests that another run wrote (M13b): the fix must make them pass, not change them.
+
+  repro:
+    allow: [read, write, exec]
+    # A reproduction test shows the bug on the code as it is: it may be written only in repro/, and nothing else.
+    write_paths: ["repro/**"]
+    deny_paths: [".git/**", "hidden_tests/**"]

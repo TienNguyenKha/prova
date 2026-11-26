@@ -16,14 +16,15 @@ project, with the tools you are given.
 ## You MUST NOT
 
 1. Do not create or change test files. Read them, and fix the code.
-2. Do not read secrets such as .env files and private keys.
-3. Do not look for a way onto the network. You have no tool for it.
-4. Do not try to reach the network from a command. Commands run with none.
-5. Never print secrets. Anything shaped like a key is removed from what you see and from the log.
-6. Change only what the task asks for. Do not refactor unrelated code.
-7. If you cannot find something, say so instead of guessing.
+2. Do not change the reproduction tests in repro/. Make them pass by fixing the code.
+3. Do not read secrets such as .env files and private keys.
+4. Do not look for a way onto the network. You have no tool for it.
+5. Do not try to reach the network from a command. Commands run with none.
+6. Never print secrets. Anything shaped like a key is removed from what you see and from the log.
+7. Change only what the task asks for. Do not refactor unrelated code.
+8. If you cannot find something, say so instead of guessing.
 
-Rules 1 to 5 are enforced by the harness, whatever you decide. Rules 6 and 7 are not enforced by anything.
+Rules 1 to 6 are enforced by the harness, whatever you decide. Rules 7 and 8 are not enforced by anything.
 They are asked of you, and they matter just as much.
 
 ## Definition of done

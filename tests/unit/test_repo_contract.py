@@ -64,6 +64,7 @@ def test_every_rule_that_can_be_enforced_is() -> None:
         "no_network_tools",
         "no_network_in_commands",
         "no_secrets_in_logs",
+        "no_repro_edits",
     } <= enforced
 
 
@@ -77,6 +78,17 @@ def test_a_fix_profile_that_may_write_tests_makes_the_contract_fail_and_names_th
     weakened = profiles["fix"].model_copy(update={"write_deny_paths": ()})
     ctx = real_context(settings, profiles={**profiles, "fix": weakened})
     with pytest.raises(ContractError, match=r"no_test_edits.*lets .* be written"):
+        check_contract(load_contract(CONTRACT), builtin_mechanisms(), ctx)
+
+
+def test_a_fix_profile_that_may_write_the_reproduction_tests_makes_the_contract_fail(
+    settings: Settings,
+) -> None:
+    profiles = load_profiles(ROOT / "permissions.yaml")
+    deny = tuple(p for p in profiles["fix"].write_deny_paths if not p.startswith("repro"))
+    weakened = profiles["fix"].model_copy(update={"write_deny_paths": deny})
+    ctx = real_context(settings, profiles={**profiles, "fix": weakened})
+    with pytest.raises(ContractError, match=r"no_repro_edits.*lets .* be written"):
         check_contract(load_contract(CONTRACT), builtin_mechanisms(), ctx)
 
 

@@ -36,7 +36,7 @@ CASSETTE = ROOT / "bench" / "cassettes" / "dev.jsonl"
 # The tasks the cassette has answers for, and what the recorded run ended with. Tasks added later are not
 # here: they have no recorded answers. The grading is run again here, in a real container.
 RESOLVED = {
-    "t001_injection_regex": False,  # its regex also flags a negated phrase (see LEARNINGS)
+    "t001_injection_regex": True,  # resolved in the recording of 2026-11-26 (the one before was not)
     "t002_url_branch_unreachable": True,
     "t006_fail_open_classifier": True,
 }

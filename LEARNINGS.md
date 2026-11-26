@@ -1194,3 +1194,23 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   are hard for real (Act V), where a first attempt misses. The numbers of the loop (4 attempts, stuck after 2) stay
   guesses.
 
+## M13b (in progress): does a reproduction test fail for the right reason?
+
+- **Where an error was raised is read from `--tb=native`:** the deepest frame inside the repo says it. Raised in the
+  code, even from a library the code called (`json`), is a reproduction; raised in the test file itself (a typo, a
+  helper next to it, a library the test called directly) is not. `AssertionError` and pytest's `Failed` (DID NOT RAISE)
+  count as assertions. Collection errors (import, syntax), a run that passes or finds nothing, output that was cut
+  and an exit code of another kind are never a reproduction. Learned from real output of pytest before writing the
+  tests, and checked again on the uncut output (about twenty frames of pytest in each traceback).
+- **The same rules as the fingerprint:** which tests failed comes from the short summary; the traceback of a test is
+  read from its own section and stops before what it printed, so a test cannot print a fake traceback to pass.
+- **"For the right reason" is "in the right place", not "about the right bug":** a test with a wrong expectation
+  still fails on an assertion. Only the reproduction rate (red on the bug, green with the reference patch) shows it.
+- **The reproduction role needs its own permissions and contract:** rule 1 of the fix contract forbids writing tests,
+  and the stop hook wants them green, both the opposite of what a reproduction run does. The `repro` profile may
+  write only in `repro/`; the `fix` profile may not write there (rule 2 of the contract, checked by trying to write
+  `repro/helpers.py`). Test files were already blocked at any depth, helper files were not.
+- **A change to the contract is a change to the prompt:** `AGENTS.md` is the last layer of the system prompt, so the
+  cassette had to be recorded again ($0.22). In the new recording t001 was resolved, in the old one it was not:
+  two runs of one seed, nothing to conclude.
+

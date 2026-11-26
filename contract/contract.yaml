@@ -12,6 +12,11 @@ must_not:
     enforced_by: permissions.write_blocked
     params: {profile: fix, path: tests/unit/test_probe.py}
 
+  - id: no_repro_edits
+    text: Do not change the reproduction tests in repro/. Make them pass by fixing the code.
+    enforced_by: permissions.write_blocked
+    params: {profile: fix, path: repro/helpers.py}
+
   - id: no_secret_reads
     text: Do not read secrets such as .env files and private keys.
     enforced_by: permissions.read_blocked
