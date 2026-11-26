@@ -86,7 +86,8 @@ flowchart TB
 prova/security/
 ├── kb/
 │   ├── sources/{cwe,capec,owasp,osv,ghsa,nvd,kev,epss}.py
-│   ├── snapshot.py   normalize.py   chunk.py   index.py   retrieve.py
+│   ├── snapshot.py   normalize.py         # tự viết: tải, snapshot, KbDoc
+│   ├── to_nodes.py   index.py   retrieve.py   # LlamaIndex: KbDoc → node, index, truy hồi (chỉ ở đây)
 │   └── eval.py                     # bộ đánh giá truy hồi
 ├── sarif.py                         # bộ đọc SARIF/JSON chung → SecurityFinding
 ├── tools.yaml                       # công cụ + phiên bản + digest đã ghim
@@ -221,7 +222,8 @@ kb/
 2. Thêm OWASP (git), GHSA (git), OSV (zip + `modified_id.csv`), NVD (API với key, tôn trọng rate limit), KEV, EPSS, CAPEC.
 3. **Snapshot bất biến**: mỗi lần tải là một thư mục mới có hash; không sửa tại chỗ.
 4. Lệnh `prova kb sync [--source X]`: kiểm phiên bản → tải phần mới → chuẩn hóa → **chỉ embed lại doc có
-   `content_hash` đổi** → build index **staging** → chạy bộ eval truy hồi (S2) → đạt thì chuyển staging thành active,
+   `content_hash` đổi** (đặt `content_hash` làm `id_`/hash của `Document` và dùng `IngestionPipeline` có docstore để
+   bỏ qua doc không đổi; kiểm lại chiến lược upsert của phiên bản đang dùng) → build index **staging** → chạy bộ eval truy hồi (S2) → đạt thì chuyển staging thành active,
    không đạt thì giữ bản cũ và báo lỗi.
 5. **Lịch sync đơn giản ngay từ bây giờ** (cron, launchd hoặc GitHub Action `schedule`), không cần chờ worker của Act VIII.
    Tần suất theo loại nguồn:
@@ -268,42 +270,58 @@ nguồn tra cứu ở cuối file.
 
 - 📖 *"Sách ch11: truy vấn 'Head of HR' trả về mô tả phòng nhân sự thay vì tên người. Truy vấn 'CWE-918' mà chỉ dùng
   vector thì có thể trả về một đoạn chung chung về 'xử lý request'."*
-- 🎯 **Mục tiêu học:** chunk theo cấu trúc của nguồn; hybrid search; đo truy hồi; so với LlamaIndex.
+- 🎯 **Mục tiêu học:** chunk theo cấu trúc của nguồn; hybrid search; đo truy hồi; dùng một framework RAG (LlamaIndex)
+  mà vẫn giữ nó sau một ranh giới rõ, để phần còn lại của Prova không phụ thuộc vào nó.
+- 🔀 **Đổi quyết định (2026-11-26):** LlamaIndex là **lõi của tầng RAG** (chunking, index, truy hồi), không còn chỉ là
+  baseline để so. Vòng lặp agent, tool và harness vẫn tự viết; phần tải nguồn, snapshot và manifest của S1 vẫn tự viết
+  (không có reader của LlamaIndex cho bản tải chính thức của CWE, NVD, OSV). Lý do ghi trong Decisions Log.
 
 ### Chunk theo loại nguồn
 
-Phần lớn nguồn là **bản ghi có cấu trúc**, nên chunk theo bản ghi và theo trường, không chia theo số ký tự:
+Phần lớn nguồn là **bản ghi có cấu trúc**, nên chunk theo bản ghi và theo trường, không chia theo số ký tự. Mỗi `KbDoc`
+(S1) được đổi thành `Document` của LlamaIndex (`kb/to_nodes.py`); `id`, `source`, `url`, `license`, `trust` đi vào
+`metadata`, và những trường không mang nghĩa (`url`, `license`, `content_hash`) nằm trong `excluded_embed_metadata_keys`.
 
-| Nguồn | Đơn vị chunk | Cha / con | Metadata để lọc |
-|---|---|---|---|
-| CWE | mỗi mục (description, consequences, mitigations, examples) là một chunk **con**; cả CWE là **cha** | có (trả về cha khi đủ con khớp, kiểu auto-merging) | `cwe_id`, `abstraction`, `languages` |
-| CAPEC | như CWE | có | `capec_id`, `related_cwe` |
-| OWASP Cheat Sheet | theo heading H2/H3, giữ đường dẫn heading ("SSRF › Python › requests") | có (trang là cha) | `sheet`, `heading_path` |
-| GHSA / OSV | một advisory là một chunk (đã nhỏ) | không | `ecosystem`, `package`, `affected` (dùng để **lọc**, không để embed) |
-| NVD | một CVE là một chunk | không | `cve_id`, `cwe_ids`, `cvss` |
-| Code của repo | theo hàm / class bằng `ast` (Python) | file là cha | `path`, `symbol` |
-| Ví dụ code trong CWE | **giữ nguyên khối**, không cắt giữa | thuộc mục examples | `language` |
+| Nguồn | Đơn vị chunk | Cách làm với LlamaIndex | Cha / con | Metadata để lọc |
+|---|---|---|---|---|
+| CWE | mỗi mục (description, consequences, mitigations, examples) là một chunk **con**; cả CWE là **cha** | tự dựng `TextNode` cho từng mục, nối bằng `NodeRelationship.PARENT/CHILD` (cấu trúc có sẵn, không cần đoán bằng số ký tự); ○ so với `HierarchicalNodeParser(chunk_sizes=[2048, 512, 128])` | có, gộp bằng `AutoMergingRetriever` | `cwe_id`, `abstraction`, `languages` |
+| CAPEC | như CWE | như CWE | có | `capec_id`, `related_cwe` |
+| OWASP Cheat Sheet | theo heading H2/H3, giữ đường dẫn heading ("SSRF › Python › requests") | `MarkdownNodeParser` (ghi heading vào metadata) | có (trang là cha) | `sheet`, `heading_path` |
+| GHSA / OSV | một advisory là một chunk (đã nhỏ) | một `Document` = một node, không parser | không | `ecosystem`, `package`, `affected` (dùng để **lọc**, không để embed) |
+| NVD | một CVE là một chunk | như GHSA | không | `cve_id`, `cwe_ids`, `cvss` |
+| Code của repo | theo hàm / class | `CodeSplitter` (tree-sitter, cần thêm gói ngôn ngữ); so với cắt bằng `ast` của Python | file là cha | `path`, `symbol` |
+| Ví dụ code trong CWE | **giữ nguyên khối**, không cắt giữa | node riêng trong mục examples, không qua parser cắt theo kích thước | thuộc mục examples | `language` |
 
-### Truy hồi
+### Truy hồi (bằng LlamaIndex)
 
-1. **Hybrid**: BM25 cho định danh chính xác (`CWE-918`, `shell=True`, `subprocess.run`, tên package) + vector cho nghĩa,
-   gộp bằng **Reciprocal Rank Fusion** (sách ch11).
-2. **Lọc metadata trước**: ví dụ chỉ advisory của `ecosystem=PyPI` và đúng package.
-3. **Gộp cha/con**: nhiều con của một CWE cùng khớp thì trả cả mục CWE.
-4. ○ **Rerank**: cross-encoder chạy local hoặc Haiku chấm lại top 20 → top 5.
-5. **Embedding**: theo hiểu biết của tôi, Anthropic không có endpoint embedding riêng và tài liệu của họ gợi ý Voyage AI;
-   kiểm tra lại. Phương án khác là model embedding chạy local, giữ dữ liệu trên máy. Vector store bắt đầu đơn giản
-   (SQLite + numpy, Chroma hoặc LanceDB), theo lời khuyên *"start simple"* của sách ch11.
+1. **Hybrid**: `BM25Retriever` (gói `llama-index-retrievers-bm25`) cho định danh chính xác (`CWE-918`, `shell=True`,
+   `subprocess.run`, tên package) + retriever vector của `VectorStoreIndex` cho nghĩa, gộp bằng
+   `QueryFusionRetriever(mode="reciprocal_rerank", num_queries=1)`: **Reciprocal Rank Fusion** (sách ch11).
+   `num_queries=1` là bắt buộc: mặc định (4) nó gọi LLM để sinh thêm truy vấn, tốn tiền và không tất định.
+2. **Lọc metadata trước**: `MetadataFilters` trên retriever vector (ví dụ `ecosystem=PyPI` và đúng package). Kiểm lại
+   `BM25Retriever` có nhận filter không; nếu không, lọc tập node trước khi dựng BM25, không lọc sau khi xếp hạng.
+3. **Gộp cha/con**: `AutoMergingRetriever` trên docstore chứa cả node cha: nhiều con của một CWE cùng khớp thì trả cả mục.
+4. ○ **Rerank**: `SentenceTransformerRerank` (cross-encoder chạy local) hoặc `LLMRerank` với Haiku
+   (`llama-index-llms-anthropic`) chấm lại top 20 → top 5.
+5. **Embedding và LLM luôn đặt tường minh** (`Settings.embed_model`, `Settings.llm`): mặc định của LlamaIndex là
+   **OpenAI**, mà dự án chỉ có key Anthropic; quên đặt thì hoặc lỗi, hoặc gửi dữ liệu ra một dịch vụ không định gửi.
+   Embedding: `HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")` chạy local (dữ liệu ở lại trên máy) hoặc
+   `VoyageEmbedding` (Anthropic gợi ý Voyage AI; kiểm lại). `Settings.llm = None` ở mọi chỗ không cần LLM.
+6. **Vector store** bắt đầu đơn giản: `SimpleVectorStore` lưu xuống đĩa, rồi Chroma hoặc LanceDB qua
+   `llama-index-vector-stores-*` khi cần (sách ch11: *"start simple"*).
 
-### LlamaIndex: dùng làm baseline để so, không làm lõi
+### Ranh giới: LlamaIndex ở trong `kb/`, không đi xa hơn
 
-Theo quy tắc "không framework cho phần lõi", tự viết các chunker tối thiểu ở trên để hiểu. Rồi chạy **LlamaIndex làm baseline**
-trên cùng bộ eval:
-- `MarkdownNodeParser` cho OWASP (chia theo heading, ghi heading vào metadata);
-- `HierarchicalNodeParser` (ví dụ `chunk_sizes=[2048, 512, 128]`) + `AutoMergingRetriever` cho CWE;
-- `CodeSplitter` (dựa trên tree-sitter, cần thêm gói ngôn ngữ) cho code.
-
-Bản nào thắng thì giữ, ghi lý do vào Decisions Log. Kiểm tra API hiện tại của LlamaIndex vì đường import đổi theo phiên bản.
+- Phần còn lại của Prova chỉ thấy một hàm `retrieve(query, filters) -> list[Citation]` (`kb/retrieve.py`), trong đó
+  `Citation` là kiểu của Prova (id, url, đoạn trích nguyên văn, nguồn, trust). Không có `NodeWithScore` nào đi ra
+  ngoài `kb/`: đổi framework hay đổi phiên bản chỉ chạm một thư mục.
+- Đoạn trích trả cho agent luôn bọc thẻ untrusted (S1, an toàn của pipeline), dù nó đến từ LlamaIndex.
+- **Đọc mã nguồn** của `QueryFusionRetriever` (phần RRF) và `AutoMergingRetriever` (điều kiện gộp): mục tiêu học của
+  S2 là hiểu chúng, không chỉ gọi chúng. ○ Viết lại RRF trong vài dòng và so kết quả trên bộ eval.
+- Ghim phiên bản các gói `llama-index-*` trong `uv.lock`; đường import đổi theo phiên bản, kiểm lại API khi làm.
+- Gói cài **khi dựng tới đâu thì `uv add` tới đó** (code-conventions mục 9): `llama-index-core`,
+  `llama-index-retrievers-bm25`, `llama-index-embeddings-huggingface` (hoặc `-voyageai`), ○ `llama-index-llms-anthropic`,
+  ○ `llama-index-vector-stores-chroma`.
 
 ### 🧪 Bộ eval truy hồi (`kb/eval.py`)
 
@@ -317,16 +335,26 @@ Bộ eval này là **cổng** của mỗi lần sync (S1 bước 4).
 
 ### 📏 Đo
 
-Bảng: (chunk tự viết / LlamaIndex) × (chỉ BM25 / chỉ vector / hybrid / hybrid + rerank) × metric.
+Bảng: (chỉ BM25 / chỉ vector / hybrid RRF / hybrid + auto-merging / hybrid + rerank) × (embedding local / Voyage) ×
+metric. Với CWE thêm một dòng: node tự dựng theo mục so với `HierarchicalNodeParser`.
+
+### ⚠️ Bẫy thường gặp
+
+- Để mặc định của LlamaIndex (OpenAI cho LLM và embedding): đặt `Settings` tường minh, và có test kiểm rằng việc dựng
+  index không cần mạng ngoài embedding đã chọn.
+- `QueryFusionRetriever` với `num_queries` mặc định: gọi LLM ngầm để sinh truy vấn.
+- Để kiểu của LlamaIndex lọt ra ngoài `kb/`: một lần nâng phiên bản sẽ vỡ khắp nơi.
+- Embed cả metadata không mang nghĩa (url, license, hash): làm nhiễu vector; dùng `excluded_embed_metadata_keys`.
 
 ### 📚 Tham khảo
 
 ch11 `online/adaptive_chunker.py`, `memory_agent.py`; sách ch11 (hierarchical chunking, document-aware parsing, hybrid,
-rerank, agentic RAG); nguồn LlamaIndex ở cuối file.
+rerank, agentic RAG); tài liệu LlamaIndex ở cuối file (node parser, BM25 + fusion, auto-merging, embedding).
 
 ### ✅ Xong khi
 
-Bộ eval chạy được; có bảng so sánh và quyết định ghi trong Decisions Log.
+Bộ eval chạy được và là cổng của sync (S1); có bảng so sánh các cấu hình truy hồi, cấu hình được chọn ghi trong
+Decisions Log; không kiểu nào của LlamaIndex ra ngoài `kb/`.
 
 - [ ] Hoàn thành
 
@@ -598,6 +626,7 @@ Bảng so sánh có SEM, có kết luận trung thực (kể cả nếu một c�
 - NVD API: https://nvd.nist.gov/developers/start-here · https://nvd.nist.gov/developers/vulnerabilities · https://nvd.nist.gov/developers/api-workflows
 - CISA KEV: https://github.com/cisagov/kev-data
 - Semgrep licensing: https://semgrep.dev/docs/licensing · https://semgrep.dev/legal/rules-license
+- LlamaIndex hybrid BM25 + vector với `QueryFusionRetriever` (RRF): https://developers.llamaindex.ai/python/examples/retrievers/reciprocal_rerank_fusion/ · BM25 retriever: https://developers.llamaindex.ai/python/examples/retrievers/bm25_retriever/ · Embedding local (HuggingFace) và Voyage: https://developers.llamaindex.ai/python/framework/module_guides/models/embeddings/
 - LlamaIndex node parsers: https://developers.llamaindex.ai/python/framework/module_guides/loading/node_parsers/modules/index.md · Auto-merging retriever: https://developers.llamaindex.ai/python/framework/integrations/retrievers/auto_merging_retriever/
 - CVEfixes: https://arxiv.org/abs/2107.08760
 - Trivy: https://github.com/aquasecurity/trivy · sự cố 3/2026: https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23 · https://www.aquasec.com/blog/trivy-supply-chain-attack/

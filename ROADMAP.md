@@ -105,6 +105,7 @@ Update this file at the end of every working session.
 | Date | Decision | Why |
 |---|---|---|
 | 2026-11-21 | No framework for the core; plain Anthropic SDK | The goal is to understand every layer. LlamaIndex only as a comparison baseline (Act V, S2). |
+| 2026-11-26 | LlamaIndex is the core of the RAG layer of Act V (S2), not only a baseline | Asked by the user. The agent loop, tools and harness stay plain SDK; fetching, snapshots and manifests of S1 stay hand-written (no LlamaIndex reader for the official downloads). LlamaIndex stays inside `kb/` behind `retrieve() -> list[Citation]`; its defaults (OpenAI for LLM and embeddings, LLM query generation in `QueryFusionRetriever`) are set explicitly. Partly reverses the decision of 2026-11-21. |
 | 2026-11-21 | Own benchmark built from real bugs, SWE-bench style | `openai/mle-bench` is too costly and its leaderboard is closed; only its design ideas are reused. |
 | 2026-11-21 | Positioned as a security coding agent; defensive scope only | Differentiator is evidence: every finding ships with a runnable PoC. |
 | 2026-11-22 | `uv` for the environment; `src/` layout | Pinned, hashed lockfile; tests import the installed package, not a stray local file. |

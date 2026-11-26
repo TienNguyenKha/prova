@@ -106,7 +106,7 @@ Sách nhận xét đa số đội ngũ dừng ở chữ **I**. Mục tiêu của
 | M15 | Best-of-N song song | ○ | IV | M13 |
 | M16 | Thí nghiệm kiến trúc | ★ | IV | M13, M9b |
 | S1 | Kho tri thức bảo mật: nguồn và đồng bộ | ★ | V | M5 |
-| S2 | Chunking và truy hồi (so với LlamaIndex) | ★ | V | S1 |
+| S2 | Chunking và truy hồi (bằng LlamaIndex) | ★ | V | S1 |
 | S3 | Phát hiện (SAST + agent + trích dẫn) | ★ | V | S2, M14b |
 | S4 | Chứng minh bằng PoC test | ★ | V | S3, M13b |
 | S5 | Sửa và chống hồi quy | ★ | V | S4, M14 |

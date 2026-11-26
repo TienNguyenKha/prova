@@ -36,8 +36,9 @@ Mọi lỗ hổng báo ra phải có PoC test chạy được trong sandbox. Đ�
 - Môi trường bằng **`uv`**: build đến đâu `uv add` đến đó (không cài trước, không `requirements.txt` viết tay);
   commit `pyproject.toml` + `uv.lock`; chạy qua `uv run …`. Chi tiết: code-conventions mục 9.
 - `.env` đã tạo sẵn với `ANTHROPIC_API_KEY` (dùng chung key với `~/atlas-agents`).
-- Python 3.12+, Docker (sandbox, từ M7). Không dùng framework agent cho phần lõi
-  (LlamaIndex chỉ làm baseline so sánh ở Act V S2).
+- Python 3.12+, Docker (sandbox, từ M7). Không dùng framework agent cho phần lõi (vòng lặp, tool, harness).
+  Ngoại lệ: **LlamaIndex là lõi của tầng RAG ở Act V** (chunking, index, truy hồi trong `kb/`), sau một ranh giới
+  `retrieve() -> list[Citation]`; quyết định 2026-11-26.
 
 ## Tài liệu nằm ngoài repo
 
@@ -61,6 +62,7 @@ Mọi lỗ hổng báo ra phải có PoC test chạy được trong sandbox. Đ�
 ## Quyết định đã chốt (đừng mở lại nếu người dùng không hỏi)
 
 - Tự xây từ số 0 thay vì dùng framework: mục tiêu là hiểu từng lớp (I–II hiểu, III–VII dùng, VIII–IX chia sẻ).
+  Riêng tầng RAG của Act V dùng LlamaIndex (đổi 2026-11-26, theo yêu cầu của người dùng).
 - Benchmark tự dựng từ bug thật, kiểu SWE-bench; đã xem `openai/mle-bench` và **không** dùng làm benchmark chính (quá tốn,
   leaderboard đóng), chỉ học cách thiết kế (seed ± SEM, chống gian lận, ghi chú contamination).
 - Định vị **security coding agent** (Act V là lõi; Điểm dừng 1 = cuối Act V với vuln-bench so Bandit / Semgrep / Claude Code).
