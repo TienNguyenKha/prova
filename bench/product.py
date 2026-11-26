@@ -23,18 +23,36 @@ from prova.harness.hooks import Hooks, hook_name
 from prova.harness.permissions import Profile
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
-from prova.harness.verifiers import FilesListed, LintAfterEdit, TestsBeforeStop
+from prova.harness.verifiers import FilesListed, LintAfterEdit, ReproFailsBeforeStop, TestsBeforeStop
 from prova.mechanisms import builtin_mechanisms
 from prova.prompts.render import load_layers, render_system, render_user_context
 from prova.sandbox.base import Sandbox
 from prova.tools.base import RunContext
 
-PROFILE = "fix"
 MAX_ITERATIONS = 30  # a backstop: the budget of the task is what normally ends a run
 
 
-def _hooks() -> Hooks:
-    return Hooks(post=(LintAfterEdit(),), stop=(FilesListed(), TestsBeforeStop()))
+@dataclass(frozen=True, slots=True)
+class Role:
+    """What a run of the product is for: its profile, its contract (contract.yaml and AGENTS.md in one folder)
+    and the hooks its contract names. A fix run must make the tests pass; a reproduction run (M13b) must write
+    tests in repro/ that fail for the right reason."""
+
+    profile: str
+    contract: str  # the folder of the contract, from the root of the project
+    hooks: Callable[[], Hooks]
+
+
+ROLES: dict[str, Role] = {
+    "fix": Role(
+        "fix", "contract", lambda: Hooks(post=(LintAfterEdit(),), stop=(FilesListed(), TestsBeforeStop()))
+    ),
+    "repro": Role(
+        "repro",
+        "contract/repro",
+        lambda: Hooks(post=(LintAfterEdit(),), stop=(FilesListed(), ReproFailsBeforeStop())),
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +61,7 @@ class ProductAgent:
 
     app: App
     profile: Profile
+    hooks: Callable[[], Hooks]  # made fresh for each run
     system: str
     prompt_hash: str
     pricing: Pricing
@@ -93,7 +112,7 @@ class ProductAgent:
             max_iterations=MAX_ITERATIONS,
             trajectory=writer,
             redactor=redactor,
-            hooks=_hooks(),
+            hooks=self.hooks(),
             budget=budget,
         )
 
@@ -106,24 +125,28 @@ def make_agent(  # noqa: PLR0913 - everything the product needs, named
     pricing: Pricing,
     open_sandbox: Callable[[Path], AbstractContextManager[Sandbox]],
     clock: Callable[[], datetime],
+    role: str = "fix",
 ) -> ProductAgent:
-    """Check the contract against this configuration, then fix the prompt. Raises ContractError if a rule of
-    the contract has no mechanism that holds: nothing is run in that case."""
-    profile = profiles[PROFILE]
-    hooks = _hooks()
-    contract = load_contract(root / "contract" / "contract.yaml")
+    """Check the contract of the role against this configuration, then fix the prompt. Raises ContractError if
+    a rule of the contract has no mechanism that holds: nothing is run in that case."""
+    if role not in ROLES:
+        raise ValueError(f"no role {role!r}; known: {', '.join(ROLES)}")
+    chosen = ROLES[role]
+    profile = profiles[chosen.profile]
+    hooks = chosen.hooks()
+    contract = load_contract(root / chosen.contract / "contract.yaml")
     check_contract(
         contract,
         builtin_mechanisms(),
         VerifyContext(profiles=profiles, hooks=hooks, tools=app.tools, project_root=root),
     )
-    agents_text = (root / "contract" / "AGENTS.md").read_text(encoding="utf-8")
+    agents_text = (root / chosen.contract / "AGENTS.md").read_text(encoding="utf-8")
     prompt = render_system(
         tools=app.tools.to_api_tools(profile.allow), contract_text=agents_text, layers=load_layers()
     )
     config: dict[str, Any] = {
         "model": app.settings.model,
-        "profile": PROFILE,
+        "profile": chosen.profile,
         "hooks": [hook_name(hook) for hook in (*hooks.post, *hooks.stop)],
         "prompt_hash": prompt.hash,
         "max_iterations": MAX_ITERATIONS,
@@ -131,6 +154,7 @@ def make_agent(  # noqa: PLR0913 - everything the product needs, named
     return ProductAgent(
         app=app,
         profile=profile,
+        hooks=chosen.hooks,
         system=prompt.system,
         prompt_hash=prompt.hash,
         pricing=pricing,

@@ -9,8 +9,8 @@ visible tests of the task; a task with none ends as `unverifiable` before anythi
 
 import os
 import time
-from collections.abc import Callable, Iterable
-from contextlib import AbstractContextManager
+from collections.abc import Callable, Generator, Iterable
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
@@ -19,7 +19,7 @@ from typing import Any, Protocol, cast
 from bench.runner import AgentRun
 from bench.task import Task
 from prova.agent.budget import Budget, Pricing
-from prova.agent.fixloop import AttemptRun, Goal, run_fix_loop
+from prova.agent.fixloop import AttemptRun, Goal, LoopResult, run_fix_loop
 from prova.agent.loop import AgentResult
 from prova.agent.workspace_check import read_text_files, run_check
 from prova.harness.redact import Redactor
@@ -56,6 +56,103 @@ class Product(Protocol):
     ) -> AgentResult: ...
 
 
+@dataclass(slots=True)
+class Spend:
+    """What the runs on one task have used of its budget. Every run (each attempt, each phase) gets only what
+    the runs before it left, so doing more runs never means spending more than the task allows."""
+
+    task: Task
+    pricing: Pricing
+    seconds: Callable[[], float]
+    used: UsageLog = field(default_factory=UsageLog)
+    tool_calls: int = 0
+    started: float = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.started = self.seconds()
+
+    def left(self) -> Budget | str:
+        """The budget for the next run, or why nothing is left."""
+        return _left(self.task, self.pricing, self.used, self.tool_calls, self.seconds() - self.started)
+
+    def add(self, result: AgentResult) -> None:
+        for record in result.usage.records:  # each run counts its turns from 1: the task's go on
+            self.used.add(replace(record, turn=len(self.used.records) + 1))
+        self.tool_calls += _tool_calls(result.messages)
+
+
+@dataclass(frozen=True, slots=True)
+class Session:
+    """One sandbox, one workspace, one trajectory and one budget, for every run of the product on a task."""
+
+    sandbox: Sandbox
+    workspace: Path
+    writer: TrajectoryWriter
+    redactor: Redactor
+    spend: Spend
+
+    def attempt(self, product: Product, prompt: str) -> AttemptRun:
+        """One run of `product` on `prompt` with what is left of the budget; none if nothing is left."""
+        left = self.spend.left()
+        if isinstance(left, str):
+            return AttemptRun("budget", left, UsageLog())
+        result = product.attempt(
+            prompt,
+            sandbox=self.sandbox,
+            workspace=self.workspace,
+            writer=self.writer,
+            budget=left,
+            redactor=self.redactor,
+        )
+        self.spend.add(result)
+        return AttemptRun(result.status, result.detail, result.usage)
+
+
+@contextmanager
+def open_session(
+    product: Product, task: Task, workspace: Path, trajectory: Path, seconds: Callable[[], float]
+) -> Generator[Session]:
+    """A session on `workspace`, logged to `trajectory`: the sandbox is closed whatever the runs do."""
+    redactor = Redactor.from_environ(os.environ)
+    writer = TrajectoryWriter(trajectory, run_id=trajectory.stem, clock=product.clock, redactor=redactor)
+    with product.open_sandbox(workspace) as sandbox:
+        yield Session(sandbox, workspace, writer, redactor, Spend(task, product.pricing, seconds))
+
+
+def fix_loop(  # noqa: PLR0913 - the loop and everything it runs in, named
+    product: Product,
+    session: Session,
+    *,
+    task: Task,
+    trajectory: Path,
+    check: list[str],
+    max_attempts: int,
+) -> LoopResult:
+    """The fix loop of M13 in a session: done when `check` exits with 0 (see prova.agent.fixloop)."""
+    goal = Goal(
+        statement=task.issue,
+        termination_check=check,
+        max_attempts=max_attempts,
+        max_usd=task.budget.max_usd,
+        escalation="stop_and_report",
+    )
+    return run_fix_loop(
+        goal,
+        attempt=lambda prompt: session.attempt(product, prompt),
+        read_files=lambda: read_text_files(session.workspace),
+        verify=lambda: run_check(session.sandbox, check, timeout_s=CHECK_TIMEOUT_S),
+        pricing=product.pricing,
+        escalations_md=trajectory.parent / "escalations.md",
+        state_file=trajectory.with_name(f"{trajectory.stem}.state.json"),
+        now=product.clock,
+        redactor=session.redactor,
+    )
+
+
+def status_of(result: LoopResult) -> str:
+    return "done" if result.status == "done" else f"escalated:{result.reason}"
+
+
 @dataclass(frozen=True, slots=True)
 class LoopAgent:
     product: Product
@@ -67,54 +164,16 @@ class LoopAgent:
         return {**self.product.config, "loop": {"max_attempts": self.max_attempts, "check": list(CHECK)}}
 
     def __call__(self, task: Task, workspace: Path, trajectory: Path) -> AgentRun:
-        redactor = Redactor.from_environ(os.environ)
-        writer = TrajectoryWriter(
-            trajectory, run_id=trajectory.stem, clock=self.product.clock, redactor=redactor
-        )
-        goal = Goal(
-            statement=task.issue,
-            termination_check=list(CHECK),
-            max_attempts=self.max_attempts,
-            max_usd=task.budget.max_usd,
-            escalation="stop_and_report",
-        )
-        used = UsageLog()
-        tool_calls = 0
-        started = self.seconds()
-
-        with self.product.open_sandbox(workspace) as sandbox:  # closed whatever the loop does
-
-            def attempt(prompt: str) -> AttemptRun:
-                nonlocal tool_calls
-                left = _left(task, self.product.pricing, used, tool_calls, self.seconds() - started)
-                if isinstance(left, str):
-                    return AttemptRun("budget", left, UsageLog())
-                result = self.product.attempt(
-                    prompt,
-                    sandbox=sandbox,
-                    workspace=workspace,
-                    writer=writer,
-                    budget=left,
-                    redactor=redactor,
-                )
-                for record in result.usage.records:  # each attempt counts its turns from 1: the loop's go on
-                    used.add(replace(record, turn=len(used.records) + 1))
-                tool_calls += _tool_calls(result.messages)
-                return AttemptRun(result.status, result.detail, result.usage)
-
-            result = run_fix_loop(
-                goal,
-                attempt=attempt,
-                read_files=lambda: read_text_files(workspace),
-                verify=lambda: run_check(sandbox, list(CHECK), timeout_s=CHECK_TIMEOUT_S),
-                pricing=self.product.pricing,
-                escalations_md=trajectory.parent / "escalations.md",
-                state_file=trajectory.with_name(f"{trajectory.stem}.state.json"),
-                now=self.product.clock,
-                redactor=redactor,
+        with open_session(self.product, task, workspace, trajectory, self.seconds) as session:
+            result = fix_loop(
+                self.product,
+                session,
+                task=task,
+                trajectory=trajectory,
+                check=list(CHECK),
+                max_attempts=self.max_attempts,
             )
-        status = "done" if result.status == "done" else f"escalated:{result.reason}"
-        return AgentRun(status=status, detail=result.detail, usage=used)
+        return AgentRun(status=status_of(result), detail=result.detail, usage=session.spend.used)
 
 
 def _left(task: Task, pricing: Pricing, used: UsageLog, tool_calls: int, seconds: float) -> Budget | str:

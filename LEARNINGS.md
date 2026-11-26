@@ -1222,4 +1222,11 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   with rule 1 "write only in repro/" (checked by trying to write `src/app.py` with the `repro` profile), "done when
   the tests fail for the right reason" (the hook above), and `cannot_reproduce` as a reason to escalate: the part
   "grill -> goal" of M13. "Test what the code does, not how" is only a request; nothing can enforce it.
+- **A role is a profile, a contract and the hooks its contract names:** `make_agent(role=...)` builds a fix run or a
+  reproduction run and checks the contract of that role at start-up. The two profiles offer the same tools and
+  differ only in where they may write, so a test that writes with the wrong profile was needed: a mutation that
+  used the fix profile for the repro role survived until one existed.
+- **One session for every run on a task:** `Spend` (what was used of the task's budget), `Session` (one sandbox,
+  one trajectory, one budget) and `fix_loop` (the M13 loop with the check handed in) came out of `LoopAgent`, so a
+  reproduction phase and a fix phase share them without spending more than the task allows.
 

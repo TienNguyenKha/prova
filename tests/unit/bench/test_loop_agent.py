@@ -16,7 +16,14 @@ from typing import Any
 
 import pytest
 
-from bench.loop_agent import CHECK, LoopAgent, _tool_calls  # pyright: ignore[reportPrivateUsage]
+from bench.loop_agent import (  # pyright: ignore[reportPrivateUsage]
+    CHECK,
+    LoopAgent,
+    Spend,
+    _tool_calls,
+    fix_loop,
+    open_session,
+)
 from bench.task import Task, load_task
 from prova.agent.budget import Budget, Pricing
 from prova.agent.loop import AgentResult
@@ -238,3 +245,27 @@ def test_only_the_tool_calls_the_model_asked_for_are_counted() -> None:
         {"role": "assistant", "content": "a final answer"},
     ]
     assert _tool_calls(messages) == 3
+
+
+# --- the parts that a reproduction run shares (M13b) --------------------------------------------------
+
+
+def test_the_clock_of_a_spend_starts_when_it_is_made(tmp_path: Path) -> None:
+    r = rig(tmp_path, GREEN, max_seconds=600)
+    now = [1_000.0]
+    spend = Spend(r.task, PRICING, lambda: now[0])
+    now[0] = 1_100.0
+    left = spend.left()
+    assert not isinstance(left, str) and left.max_seconds == pytest.approx(500)
+
+
+def test_the_fix_loop_runs_the_check_it_is_given(tmp_path: Path) -> None:
+    r = rig(tmp_path, RED_EQ, GREEN)
+    check = ["python", "-m", "pytest", "-q", "--", "repro", "tests"]
+    with open_session(r.product, r.task, r.workspace, r.trajectory, lambda: 0.0) as session:  # type: ignore[arg-type]
+        result = fix_loop(
+            r.product, session, task=r.task, trajectory=r.trajectory, check=check, max_attempts=2
+        )  # type: ignore[arg-type]
+    assert result.status == "done"
+    assert [c["argv"] for c in r.product.sandbox.calls] == [check, check]
+    assert "python -m pytest -q -- repro tests" in r.product.seen[0]["prompt"]

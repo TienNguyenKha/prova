@@ -57,10 +57,10 @@ class Rig:
         finally:
             self.closed += 1
 
-    def agent(self, profiles: dict[str, Profile] | None = None) -> Any:
+    def agent(self, profiles: dict[str, Profile] | None = None, role: str = "fix") -> Any:
         return make_agent(
             app=self.app, profiles=profiles or self.profiles, root=ROOT, pricing=PRICING,
-            open_sandbox=self.open_sandbox, clock=utc,
+            open_sandbox=self.open_sandbox, clock=utc, role=role,
         )  # fmt: skip
 
     def events(self) -> list[dict[str, Any]]:
@@ -182,3 +182,55 @@ def test_a_bug_in_a_tool_stops_the_run_and_is_not_hidden_from_the_result(
     r = rig(tmp_path, settings, [calls], tools=[BuggyTool()])
     with pytest.raises(RuntimeError, match="secret-detail"):
         r.agent()(r.task, r.workspace, r.trajectory)
+
+
+# --- the role of a reproduction run (M13b) -----------------------------------------------------------
+
+
+def test_the_repro_role_has_its_own_profile_hooks_and_prompt(tmp_path: Path, settings: Settings) -> None:
+    r = rig(tmp_path, settings)
+    fix, repro = r.agent(), r.agent(role="repro")
+    assert repro.config["profile"] == "repro"
+    assert repro.config["hooks"] == ["lint_after_edit", "files_listed", "repro_fails_before_stop"]
+    assert repro.config["prompt_hash"] != fix.config["prompt_hash"]
+    assert "reproduces a bug" in repro.system and "reproduces a bug" not in fix.system
+    assert "Do not change the reproduction tests in repro/" in fix.system
+
+
+def test_the_repro_role_checks_its_own_contract_before_anything_runs(
+    tmp_path: Path, settings: Settings
+) -> None:
+    r = rig(tmp_path, settings)
+    loose = {**r.profiles, "repro": r.profiles["repro"].model_copy(update={"write_paths": ("**",)})}
+    with pytest.raises(ContractError, match="no_code_edits"):
+        r.agent(loose, role="repro")
+    r.agent(loose)  # the fix role does not depend on the repro profile
+
+
+def test_an_unknown_role_is_an_error_that_names_the_known_ones(tmp_path: Path, settings: Settings) -> None:
+    with pytest.raises(ValueError, match=r"'review'.*fix, repro"):
+        rig(tmp_path, settings).agent(role="review")
+
+
+def test_a_run_in_the_repro_role_is_held_back_by_its_own_gate(tmp_path: Path, settings: Settings) -> None:
+    report = {"files_changed_with_reason": [], "test_command": "pytest repro", "assumptions": []}
+    replies = [tool_use_message(("a", "submit_result", report)), *[text_message("done")] * 3]
+    r = rig(
+        tmp_path, settings, replies
+    )  # the report is true (nothing changed), so only the gate holds it back
+    r.agent(role="repro")(r.task, r.workspace, r.trajectory)
+    hooks = {e["hook"] for e in r.events() if e["type"] == "hook_decision" and e["action"] == "continue"}
+    assert "repro_fails_before_stop" in hooks and "tests_before_stop" not in hooks
+
+
+def test_a_run_in_the_repro_role_may_write_in_repro_and_nowhere_else(
+    tmp_path: Path, settings: Settings
+) -> None:
+    writes = tool_use_message(
+        ("a", "create_file", {"path": "repro/test_bug.py", "content": "def test_x():\n    assert False\n"}),
+        ("b", "create_file", {"path": "lib.py", "content": "x = 1\n"}),
+    )
+    r = rig(tmp_path, settings, [writes, *[text_message("done")] * 3])
+    r.agent(role="repro")(r.task, r.workspace, r.trajectory)
+    assert (r.workspace / "repro" / "test_bug.py").is_file()
+    assert not (r.workspace / "lib.py").exists()
