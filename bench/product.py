@@ -23,7 +23,13 @@ from prova.harness.hooks import Hooks, hook_name
 from prova.harness.permissions import Profile
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
-from prova.harness.verifiers import FilesListed, LintAfterEdit, ReproFailsBeforeStop, TestsBeforeStop
+from prova.harness.verifiers import (
+    AttacksWrittenBeforeStop,
+    FilesListed,
+    LintAfterEdit,
+    ReproFailsBeforeStop,
+    TestsBeforeStop,
+)
 from prova.mechanisms import builtin_mechanisms
 from prova.prompts.render import load_layers, render_system, render_user_context
 from prova.sandbox.base import Sandbox
@@ -51,6 +57,11 @@ ROLES: dict[str, Role] = {
         "repro",
         "contract/repro",
         lambda: Hooks(post=(LintAfterEdit(),), stop=(FilesListed(), ReproFailsBeforeStop())),
+    ),
+    "adversary": Role(
+        "adversary",
+        "contract/adversary",
+        lambda: Hooks(post=(LintAfterEdit(),), stop=(FilesListed(), AttacksWrittenBeforeStop())),
     ),
 }
 

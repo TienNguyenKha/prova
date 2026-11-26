@@ -1277,4 +1277,8 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   they broke the patch (red for the right reason) or not (green), and sends it back when it wrote none or one that
   is broken itself. The verdict is not the hook's; the harness reads it from the tests. One `pytest_argv(folder)`
   runs reproduction and attack tests the same way.
+- **The adversary has its own contract, and the contracts of the roles share one test:** `contract/adversary/` has
+  the same form as the others; its "you get nothing for agreeing" is only a request, and its "done" is "you tried
+  at least one attack, as a test that runs". The test of the repro contract became one test parametrized by role,
+  so a new role is one more line, not one more file.
 

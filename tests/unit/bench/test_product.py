@@ -234,3 +234,30 @@ def test_a_run_in_the_repro_role_may_write_in_repro_and_nowhere_else(
     r.agent(role="repro")(r.task, r.workspace, r.trajectory)
     assert (r.workspace / "repro" / "test_bug.py").is_file()
     assert not (r.workspace / "lib.py").exists()
+
+
+# --- the role of an adversary (M14) ------------------------------------------------------------------
+
+
+def test_the_adversary_role_has_its_own_profile_hooks_and_prompt(tmp_path: Path, settings: Settings) -> None:
+    r = rig(tmp_path, settings)
+    adversary = r.agent(role="adversary")
+    assert adversary.config["profile"] == "adversary"
+    assert adversary.config["hooks"] == ["lint_after_edit", "files_listed", "attacks_written_before_stop"]
+    assert "You get nothing for agreeing" in adversary.system
+    assert adversary.config["prompt_hash"] not in {
+        r.agent().config["prompt_hash"],
+        r.agent(role="repro").config["prompt_hash"],
+    }
+
+
+def test_a_run_in_the_adversary_role_may_write_in_attack_and_nowhere_else(
+    tmp_path: Path, settings: Settings
+) -> None:
+    writes = tool_use_message(
+        ("a", "create_file", {"path": "attack/test_break.py", "content": "def test_x():\n    assert True\n"}),
+        ("b", "create_file", {"path": "lib.py", "content": "x = 1\n"}),
+    )
+    r = rig(tmp_path, settings, [writes, *[text_message("done")] * 3])
+    r.agent(role="adversary")(r.task, r.workspace, r.trajectory)
+    assert (r.workspace / "attack" / "test_break.py").is_file() and not (r.workspace / "lib.py").exists()
