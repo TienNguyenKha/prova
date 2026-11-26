@@ -77,7 +77,7 @@ def test_without_confirm_it_shows_the_plan_and_the_ceiling_and_spends_nothing(
     root = tasks_in(tmp_path, "t001", "t002")
     ran: list[object] = []
     code = main(
-        ["--seeds", "2"], root=root, execute=lambda folders, seeds, record, loop: ran.append(folders) or 0
+        ["--seeds", "2"], root=root, execute=lambda folders, seeds, record, mode: ran.append(folders) or 0
     )
     out = capsys.readouterr().out
     assert code == 0 and ran == []
@@ -88,7 +88,7 @@ def test_with_confirm_it_runs_the_selected_tasks_with_the_seeds(tmp_path: Path) 
     root = tasks_in(tmp_path, "t001", "t002")
     got: list[tuple[list[str], int]] = []
 
-    def execute(folders: list[Path], seeds: int, record: Path | None, loop: bool) -> int:
+    def execute(folders: list[Path], seeds: int, record: Path | None, mode: str) -> int:
         got.append(([f.name for f in folders], seeds))
         return 0
 
@@ -99,14 +99,14 @@ def test_with_confirm_it_runs_the_selected_tasks_with_the_seeds(tmp_path: Path) 
 def test_a_seed_count_below_one_is_refused(tmp_path: Path) -> None:
     root = tasks_in(tmp_path, "t001")
     with pytest.raises(SystemExit):
-        main(["--seeds", "0"], root=root, execute=lambda folders, seeds, record, loop: 0)
+        main(["--seeds", "0"], root=root, execute=lambda folders, seeds, record, mode: 0)
 
 
 def test_an_unknown_task_is_an_error_message_and_a_failing_exit_code(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tasks_in(tmp_path, "t001")
-    assert main(["--task", "t999"], root=root, execute=lambda folders, seeds, record, loop: 0) == 1
+    assert main(["--task", "t999"], root=root, execute=lambda folders, seeds, record, mode: 0) == 1
     assert "t999" in capsys.readouterr().out
 
 
@@ -118,7 +118,7 @@ def test_the_plan_says_where_the_cassette_will_be_written(
 ) -> None:
     root = tasks_in(tmp_path, "t001")
     cassette = tmp_path / "dev.jsonl"
-    main(["--record", str(cassette)], root=root, execute=lambda folders, seeds, record, loop: 0)
+    main(["--record", str(cassette)], root=root, execute=lambda folders, seeds, record, mode: 0)
     assert str(cassette) in capsys.readouterr().out
 
 
@@ -126,7 +126,7 @@ def test_with_confirm_the_cassette_path_goes_to_the_run(tmp_path: Path) -> None:
     root = tasks_in(tmp_path, "t001")
     got: list[Path | None] = []
 
-    def execute(folders: list[Path], seeds: int, record: Path | None, loop: bool) -> int:
+    def execute(folders: list[Path], seeds: int, record: Path | None, mode: str) -> int:
         got.append(record)
         return 0
 
@@ -146,7 +146,7 @@ def test_a_cassette_that_already_exists_is_refused_and_nothing_runs(
     ran: list[object] = []
     code = main(
         ["--confirm", "--record", str(cassette)], root=root,
-        execute=lambda folders, seeds, record, loop: ran.append(1) or 0,
+        execute=lambda folders, seeds, record, mode: ran.append(1) or 0,
     )  # fmt: skip
     assert code == 1 and ran == [] and "dev.jsonl" in capsys.readouterr().out
     assert cassette.read_text(encoding="utf-8") == "old\n"  # not touched
@@ -157,9 +157,9 @@ def test_a_cassette_that_already_exists_is_refused_and_nothing_runs(
 
 def test_the_plan_says_which_agent_runs(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     root = tasks_in(tmp_path, "t001")
-    main([], root=root, execute=lambda folders, seeds, record, loop: 0)
+    main([], root=root, execute=lambda folders, seeds, record, mode: 0)
     assert "agent: one run of the product" in capsys.readouterr().out
-    main(["--loop"], root=root, execute=lambda folders, seeds, record, loop: 0)
+    main(["--loop"], root=root, execute=lambda folders, seeds, record, mode: 0)
     out = capsys.readouterr().out
     assert "agent: the fix loop, up to 4 attempts that share the budget of the task" in out
     assert "$0.50" in out  # the ceiling does not grow with the attempts
@@ -167,15 +167,16 @@ def test_the_plan_says_which_agent_runs(tmp_path: Path, capsys: pytest.CaptureFi
 
 def test_with_confirm_the_choice_of_the_loop_goes_to_the_run(tmp_path: Path) -> None:
     root = tasks_in(tmp_path, "t001")
-    got: list[bool] = []
+    got: list[str] = []
 
-    def execute(folders: list[Path], seeds: int, record: Path | None, loop: bool) -> int:
-        got.append(loop)
+    def execute(folders: list[Path], seeds: int, record: Path | None, mode: str) -> int:
+        got.append(mode)
         return 0
 
     main(["--confirm", "--loop"], root=root, execute=execute)
+    main(["--confirm", "--repro"], root=root, execute=execute)
     main(["--confirm"], root=root, execute=execute)
-    assert got == [True, False]
+    assert got == ["loop", "repro", "one"]
 
 
 def test_with_the_loop_the_plan_names_the_tasks_with_no_test_the_agent_can_run(
@@ -184,10 +185,29 @@ def test_with_the_loop_the_plan_names_the_tasks_with_no_test_the_agent_can_run(
     root = tasks_in(tmp_path, "t001", "t002")
     (root / "dev" / "t002" / "repo" / "tests").mkdir()
     (root / "dev" / "t002" / "repo" / "tests" / "test_x.py").write_text("", encoding="utf-8")
-    main(["--loop"], root=root, execute=lambda folders, seeds, record, loop: 0)
+    main(["--loop"], root=root, execute=lambda folders, seeds, record, mode: 0)
     out = capsys.readouterr().out
     assert "no test the agent can run, so it ends as unverifiable before any money is spent: t001" in out
-    main([], root=root, execute=lambda folders, seeds, record, loop: 0)
+    main([], root=root, execute=lambda folders, seeds, record, mode: 0)
     assert "unverifiable" not in capsys.readouterr().out  # one run does not need a visible test
-    main(["--loop", "--task", "t002"], root=root, execute=lambda folders, seeds, record, loop: 0)
+    main(["--loop", "--task", "t002"], root=root, execute=lambda folders, seeds, record, mode: 0)
     assert "unverifiable" not in capsys.readouterr().out  # every task selected has one
+
+
+# --- reproduce first (M13b) -------------------------------------------------------------------------
+
+
+def test_the_plan_says_the_reproduction_comes_first_and_names_no_task_as_unverifiable(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tasks_in(tmp_path, "t001")  # no visible test: the reproduction run writes one
+    main(["--repro"], root=root, execute=lambda folders, seeds, record, mode: 0)
+    out = capsys.readouterr().out
+    assert "agent: reproduce the bug first (repro role), then the fix loop" in out
+    assert "unverifiable" not in out and "$0.50" in out
+
+
+def test_the_loop_and_reproduce_first_cannot_both_be_asked_for(tmp_path: Path) -> None:
+    root = tasks_in(tmp_path, "t001")
+    with pytest.raises(SystemExit):
+        main(["--loop", "--repro"], root=root, execute=lambda folders, seeds, record, mode: 0)

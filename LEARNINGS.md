@@ -1235,4 +1235,8 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   `repro` (and `tests`, if the task has them) as its check. The tests are moved out of the workspace at the end,
   even when the fix crashes, so the grade sees only the fix. Found in review, not by a test: `truncated` was set to
   False by hand, so cut output could have counted as a reproduction.
+- **`bench.run --repro`:** each role is built with `make_agent(role=...)` and checks its own contract before
+  anything runs; `--loop` and `--repro` cannot be asked for together. `_execute` has no unit test (it needs the API
+  and Docker), so both roles were built once on the real configuration with a fake model, to see the two
+  contracts hold before money is spent.
 

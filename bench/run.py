@@ -4,6 +4,7 @@
   uv run python -m bench.run --confirm            # runs it (calls the API, costs money; needs Docker)
   uv run python -m bench.run --task t001_injection_regex --seeds 3 --confirm
   uv run python -m bench.run --loop --confirm      # the fix loop instead of one run (see bench.loop_agent)
+  uv run python -m bench.run --repro --confirm     # reproduce first, then the fix loop (bench.repro_agent)
 
 Spending money is a decision, so without `--confirm` the command only shows what it would do. The most a run
 can cost is the money limit of its task: a limit is checked between turns, so a run can end over it by the
@@ -23,8 +24,9 @@ from typing import Any
 
 from bench.loop_agent import MAX_ATTEMPTS, LoopAgent
 from bench.pricing import PricingError, load_price_table
-from bench.product import make_agent
+from bench.product import ProductAgent, make_agent
 from bench.report import load_results, render
+from bench.repro_agent import ReproAgent
 from bench.runner import run_task
 from bench.task import TaskError, load_task
 from prova.config import Settings
@@ -34,8 +36,8 @@ from prova.llm.client import LLMClient, make_client
 
 BENCH = Path(__file__).resolve().parent
 TASKS = BENCH / "tasks"
-# (task folders, seeds, cassette, the fix loop or one run) -> exit code
-Execute = Callable[[list[Path], int, Path | None, bool], int]
+# (task folders, seeds, cassette, which agent: "one", "loop" or "repro") -> exit code
+Execute = Callable[[list[Path], int, Path | None, str], int]
 
 
 class RunError(Exception):
@@ -64,13 +66,18 @@ def new_run_id(now: datetime) -> str:
     return f"{now:%Y-%m-%dT%H-%M}_{secrets.token_hex(3)}"
 
 
-def _plan(folders: list[Path], seeds: int, ceiling: float, record: Path | None, loop: bool) -> str:
+def _plan(folders: list[Path], seeds: int, ceiling: float, record: Path | None, mode: str) -> str:
     names = "\n".join(f"  - {folder.name}" for folder in folders)
     lines = [
         f"{len(folders)} task(s) x {seeds} seed(s) = {len(folders) * seeds} run(s):\n{names}",
         f"the most this can cost: ${ceiling:.2f} (the money limit of each task, for each run)",
     ]
-    if loop:
+    if mode == "repro":
+        lines.append(
+            f"agent: reproduce the bug first (repro role), then the fix loop, up to {MAX_ATTEMPTS} attempts; "
+            "both share the budget of the task"
+        )
+    elif mode == "loop":
         lines.append(f"agent: the fix loop, up to {MAX_ATTEMPTS} attempts that share the budget of the task")
         blind = [f.name for f in folders if not (f / "repo" / "tests").is_dir()]
         if blind:
@@ -89,7 +96,9 @@ def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None)
     parser.add_argument("--task", action="append", default=[], help="a task to run (default: all)")
     parser.add_argument("--seeds", type=_at_least_one, default=1)
     parser.add_argument("--record", type=Path, help="write the model's answers to this new cassette file")
-    parser.add_argument("--loop", action="store_true", help="run the fix loop instead of one run")
+    agents = parser.add_mutually_exclusive_group()
+    agents.add_argument("--loop", action="store_true", help="run the fix loop instead of one run")
+    agents.add_argument("--repro", action="store_true", help="reproduce the bug first, then the fix loop")
     parser.add_argument("--confirm", action="store_true", help="really run: calls the API, costs money")
     args = parser.parse_args(argv)
     try:
@@ -101,11 +110,12 @@ def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None)
     if args.record is not None and args.record.exists():
         print(f"error: {args.record} already exists: a cassette is written once, never added to")  # noqa: T201
         return 1
-    print(_plan(folders, args.seeds, ceiling, args.record, args.loop))  # noqa: T201
+    mode = "repro" if args.repro else "loop" if args.loop else "one"
+    print(_plan(folders, args.seeds, ceiling, args.record, mode))  # noqa: T201
     if not args.confirm:
         print("nothing was run. Add --confirm to run it.")  # noqa: T201
         return 0
-    return (execute or _execute)(folders, args.seeds, args.record, args.loop)
+    return (execute or _execute)(folders, args.seeds, args.record, mode)
 
 
 def _at_least_one(text: str) -> int:
@@ -118,7 +128,7 @@ def _at_least_one(text: str) -> int:
 # -- the real run: needs the API and Docker, so it has no unit test; the parts it joins have ----------
 
 
-def _execute(folders: list[Path], seeds: int, record: Path | None, loop: bool) -> int:
+def _execute(folders: list[Path], seeds: int, record: Path | None, mode: str) -> int:
     from prova.app import build_app
     from prova.config import load_settings
     from prova.errors import ContractError, SandboxUnavailableError
@@ -130,18 +140,25 @@ def _execute(folders: list[Path], seeds: int, record: Path | None, loop: bool) -
     try:
         table = load_price_table(BENCH / "pricing.yaml")
         pricing = table.pricing_for(settings.model)
-        product = make_agent(
-            app=build_app(settings, llm=_llm(settings, record)),
-            profiles=load_profiles(root / "permissions.yaml"),
-            root=root,
-            pricing=pricing,
-            open_sandbox=lambda workspace: DockerSandbox(workspace),
-            clock=lambda: datetime.now(UTC),
-        )
+        app = build_app(settings, llm=_llm(settings, record))
+        profiles = load_profiles(root / "permissions.yaml")
+
+        def product(role: str) -> ProductAgent:  # each role checks its own contract before anything runs
+            return make_agent(
+                app=app, profiles=profiles, root=root, pricing=pricing,
+                open_sandbox=lambda workspace: DockerSandbox(workspace), clock=lambda: datetime.now(UTC),
+                role=role,
+            )  # fmt: skip
+
+        fixer = product("fix")
+        agent: ProductAgent | LoopAgent | ReproAgent = fixer
+        if mode == "loop":
+            agent = LoopAgent(fixer)
+        elif mode == "repro":
+            agent = ReproAgent(fixer, product("repro"))
     except (PricingError, ContractError) as e:
         print(f"error: the run does not start: {e}")  # noqa: T201
         return 1
-    agent = LoopAgent(product) if loop else product
 
     run_id = new_run_id(datetime.now(UTC))
     results = BENCH / "results" / f"{run_id}.jsonl"
