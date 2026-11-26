@@ -27,6 +27,10 @@ Kind = Literal[
     "no_tests",
     "unreadable",
 ]
+REPRO_DIR = "repro"  # where a reproduction run writes its tests (the `repro` profile may write only there)
+# How the reproduction tests are run, by the stop hook and by the harness: native tracebacks show where an
+# error was raised; no -x, so every test is seen.
+REPRO_ARGV = ["python", "-m", "pytest", "-q", "--tb=native", "-p", "no:cacheprovider", "--", REPRO_DIR]
 VALID_KINDS = frozenset({"assertion", "exception_in_code"})
 _FAILED_BY_ASSERTION = frozenset({"AssertionError", "Failed"})  # Failed: pytest.fail, DID NOT RAISE
 _IMPORT = frozenset({"ImportError", "ModuleNotFoundError"})

@@ -1213,4 +1213,13 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **A change to the contract is a change to the prompt:** `AGENTS.md` is the last layer of the system prompt, so the
   cassette had to be recorded again ($0.22). In the new recording t001 was resolved, in the old one it was not:
   two runs of one seed, nothing to conclude.
+- **The stop hook of a reproduction run is the gate of a fix run turned over:** `ReproFailsBeforeStop` runs
+  `REPRO_ARGV` (native tracebacks, no `-x`) in the sandbox and lets the run end only when `classify_repro` says the
+  tests fail for the right reason; otherwise the model is sent back with the reason ("NameError raised in the test
+  itself... fix the test"). This is the "write the reproduction again" loop of the plan, inside one attempt and at
+  the price of one more turn. The harness still checks once more after the run: the hook gives up after two tries.
+- **The reproduction role has its own contract (`contract/repro/`):** the same form and checks as the fix contract,
+  with rule 1 "write only in repro/" (checked by trying to write `src/app.py` with the `repro` profile), "done when
+  the tests fail for the right reason" (the hook above), and `cannot_reproduce` as a reason to escalate: the part
+  "grill -> goal" of M13. "Test what the code does, not how" is only a request; nothing can enforce it.
 

@@ -1,5 +1,5 @@
-"""Two hooks the harness runs by itself to check the model's work: lint after an edit, and tests before it
-may stop.
+"""Hooks the harness runs by itself to check the model's work: lint after an edit, and tests before it may
+stop (green for a fix run, red for the right reason for a reproduction run).
 
 The model cannot call them, skip them or change what they run. Both run in the sandbox, so nothing the
 model wrote ever runs on the host. A check that could not run is never reported as a check that passed.
@@ -7,6 +7,7 @@ model wrote ever runs on the host. A check that could not run is never reported 
 
 from pathlib import Path
 
+from prova.agent.repro import REPRO_ARGV, classify_repro
 from prova.errors import ToolError
 from prova.harness.hooks import HookDecision, HookEvent
 from prova.tools.base import RunContext
@@ -95,6 +96,38 @@ class TestsBeforeStop:
             )
         message = f"the tests could not be checked: pytest ended with exit code {code}:\n{shown}"
         return HookDecision.continue_run(message)
+
+
+class ReproFailsBeforeStop:
+    """The stop hook of a reproduction run: it may end only once its tests fail, for the right reason."""
+
+    name = "repro_fails_before_stop"
+
+    def __init__(self, *, timeout_s: float = 120.0, max_output_chars: int = 3_000) -> None:
+        self._timeout_s = timeout_s
+        self._max_output_chars = max_output_chars
+
+    def __call__(self, ev: HookEvent) -> HookDecision:
+        sandbox = ev.ctx.sandbox
+        if sandbox is None:
+            return HookDecision.continue_run(
+                "the reproduction tests cannot be checked: this run has no sandbox"
+            )
+        result = sandbox.run(REPRO_ARGV, timeout_s=self._timeout_s, cwd="/work")
+        if result.timed_out:
+            return HookDecision.continue_run(
+                "the reproduction tests could not be checked: "
+                f"they did not finish within {self._timeout_s:g} seconds"
+            )
+        check = classify_repro(
+            result.output, exit_code=result.exit_code, truncated=result.truncated, root="/work"
+        )
+        if check.valid:
+            return HookDecision.allow(f"the reproduction tests show the bug: {check.reason}")
+        shown = _keep_end(result.output, self._max_output_chars)
+        return HookDecision.continue_run(
+            f"the reproduction tests do not show the bug yet: {check.reason}\n{shown}"
+        )
 
 
 def _changed_python_file(ev: HookEvent) -> str | None:

@@ -1,0 +1,61 @@
+# The contract of the reproduction role (M13b), for code to read. AGENTS.md next to it says the same for the
+# model, word for word, and is checked like the contract of a fix run (contract/contract.yaml).
+#
+# A reproduction run writes tests that show a bug, and is done when they FAIL on the code as it is, for the
+# right reason. It runs with the `repro` profile (it may write only in repro/) and the stop hook
+# `repro_fails_before_stop`, never the gate of a fix run.
+version: 1
+
+must_not:
+  - id: no_code_edits
+    text: Do not change the code. Write only the reproduction tests, in repro/.
+    enforced_by: permissions.write_blocked
+    params: {profile: repro, path: src/app.py}
+
+  - id: no_secret_reads
+    text: Do not read secrets such as .env files and private keys.
+    enforced_by: permissions.read_blocked
+    params: {profile: repro, path: .env}
+
+  - id: no_network_tools
+    text: Do not look for a way onto the network. You have no tool for it.
+    enforced_by: permissions.lacks
+    params: {profile: repro, permission: network}
+
+  - id: no_network_in_commands
+    text: Do not try to reach the network from a command. Commands run with none.
+    enforced_by: sandbox.network_none
+
+  - id: no_secrets_in_logs
+    text: Never print secrets. Anything shaped like a key is removed from what you see and from the log.
+    enforced_by: trajectory.redaction
+
+  - id: test_behaviour
+    text: Test what the code does, not how it does it, so that any right fix makes your test pass.
+    enforced_by: prompt_only
+
+  - id: no_guessing
+    text: If you cannot find something, say so instead of guessing.
+    enforced_by: prompt_only
+
+definition_of_done:
+  - id: repro_fails
+    text: Your reproduction tests fail on the code as it is, for the right reason.
+    check: hook.stop.repro_fails_before_stop
+
+  - id: lint_checked
+    text: Ruff runs after every edit of a Python file. Fix what it reports.
+    check: hook.post.lint_after_edit
+
+  - id: report_submitted
+    text: You end by handing in your report with the submit_result tool.
+    check: tool.submit_result
+    params: {profile: repro}
+
+  - id: files_listed
+    text: Your report lists exactly the files you changed, each with its reason.
+    check: hook.stop.files_listed
+
+output_contract: [files_changed_with_reason, test_command, assumptions]
+
+escalate_when: [cannot_reproduce, requires_secret]

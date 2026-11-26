@@ -28,6 +28,7 @@ _KNOWN_HOOKS: tuple[tuple[Literal["pre", "post", "stop"], str], ...] = (
     ("post", "lint_after_edit"),
     ("stop", "files_listed"),
     ("stop", "tests_before_stop"),
+    ("stop", "repro_fails_before_stop"),
 )
 _FAKE_KEY = "sk-ant-api03-AbC123_xyz-9876-QwErTy"  # the shape of a key, not a real one
 _FAKE_PRIVATE_KEY = (

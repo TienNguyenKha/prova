@@ -70,7 +70,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M13b (in progress; done: `classify_repro`, the `repro` profile and rule 2 of the fix contract; next: the stop hook `ReproFailsBeforeStop`, the contract of the repro role, `ReproAgent`, the reproduction rate): reproduce first, then fix. A test written by a subagent, checked to fail on the code for the right reason (`ReproCheck`), becomes the `termination_check` of the `Goal`; this is also step 1 of M13 (grill -> goal). Reading the state file to continue a run waits for Act VIII (M25).
+- M13b (in progress; done: `classify_repro`, the `repro` profile and rule 2 of the fix contract, the stop hook `ReproFailsBeforeStop`, the contract of the repro role (`contract/repro/`); next: `ReproAgent` and `bench.run --repro`, the reproduction rate): reproduce first, then fix. A test written by a subagent, checked to fail on the code for the right reason (`ReproCheck`), becomes the `termination_check` of the `Goal`; this is also step 1 of M13 (grill -> goal). Reading the state file to continue a run waits for Act VIII (M25).
 
 - Measure the M13 loop (`bench.run --loop`) on tasks where a first attempt misses: none of the tasks so far does, with Sonnet or Haiku. Wait for Act V. See the Decisions Log.
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
