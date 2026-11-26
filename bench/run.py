@@ -94,7 +94,7 @@ def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None)
     parser = argparse.ArgumentParser(description="Run the benchmark with the agent of the product")
     parser.add_argument("--split", default="dev")
     parser.add_argument("--task", action="append", default=[], help="a task to run (default: all)")
-    parser.add_argument("--seeds", type=_at_least_one, default=1)
+    parser.add_argument("--seeds", type=at_least_one, default=1)
     parser.add_argument("--record", type=Path, help="write the model's answers to this new cassette file")
     agents = parser.add_mutually_exclusive_group()
     agents.add_argument("--loop", action="store_true", help="run the fix loop instead of one run")
@@ -118,7 +118,7 @@ def main(argv: list[str], *, root: Path = TASKS, execute: Execute | None = None)
     return (execute or _execute)(folders, args.seeds, args.record, mode)
 
 
-def _at_least_one(text: str) -> int:
+def at_least_one(text: str) -> int:
     value = int(text)
     if value < 1:
         raise argparse.ArgumentTypeError("must be at least 1")

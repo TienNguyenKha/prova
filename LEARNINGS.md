@@ -1289,4 +1289,9 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   diff as data, one structured answer (block or pass, and why), nothing run. A reply that cannot be read gives
   no verdict ("no verdict" in the reason, so it can be counted) and is still paid for: `extract` now adds the
   usage of a call before it checks the reply, so a cut or refused reply is not free in the numbers.
+- **`bench.review`:** one line per review (a crash is a line, never a verdict), a summary per reviewer (bad
+  patches blocked, good ones blocked by mistake, cost per review, mean ± SEM by seed), the reviewers that blocked
+  nothing in their last 10 reviews, and the cases where self-review and the adversary disagree. The reviewer gets
+  `repo/` with the patch applied, never `hidden_tests/`. The ceiling counts an adversary review at the money limit
+  of its task, so it looks large ($29.70 for 18 cases, 3 seeds, two reviewers) for an expected spend near $1.
 
