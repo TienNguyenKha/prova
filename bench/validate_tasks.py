@@ -65,7 +65,7 @@ def validate(folder: Path, open_sandbox: OpenSandbox, *, runs: int = RUNS) -> Va
         original, patched = Path(tmp) / "original", Path(tmp) / "patched"
         for workdir in (original, patched):
             _copy_task(folder, workdir)
-        applied = _apply(patch, patched / "repo")
+        applied = apply_patch(patch, patched / "repo")
         if applied is not None:
             return ValidationReport(task.id, (f"reference.patch does not apply: {applied}",))
         try:
@@ -200,7 +200,7 @@ def _copy_task(folder: Path, workdir: Path) -> None:
         shutil.copytree(folder / part, workdir / part, ignore=ignore)
 
 
-def _apply(patch: Path, repo: Path) -> str | None:
+def apply_patch(patch: Path, repo: Path) -> str | None:
     """Apply the patch to the copy of repo/. Returns None, or what git said when it did not work."""
     git = shutil.which("git")
     if git is None:

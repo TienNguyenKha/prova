@@ -1239,4 +1239,10 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   anything runs; `--loop` and `--repro` cannot be asked for together. `_execute` has no unit test (it needs the API
   and Docker), so both roles were built once on the real configuration with a fake model, to see the two
   contracts hold before money is spent.
+- **The reproduction rate needs the reference patch:** `bench.repro_rate` runs the kept tests on a clean copy of
+  the bug (red for the right reason) and on a copy with `reference.patch` (green). The second half catches a test
+  that expects the wrong thing, which the agent cannot see. A reproduce-first run that kept no test counts as not
+  reproduced; rows of other agents are refused, so numbers are never mixed.
+- **The mutation script lied twice:** it said two mutations survived, and run by hand both were caught. Every
+  "survived" is checked by hand before a test is added or a mutation is called equivalent.
 
