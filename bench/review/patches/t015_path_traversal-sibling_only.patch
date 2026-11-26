@@ -1,0 +1,12 @@
+diff --git a/safe_paths.py b/safe_paths.py
+--- a/safe_paths.py
++++ b/safe_paths.py
+@@ -10,6 +10,7 @@
+ def safe_join(base: str, user_path: str) -> str:
+     """The path of `user_path` inside the folder `base`. Raises UnsafePathError if it leads out of `base`."""
+     path = os.path.normpath(os.path.join(base, user_path))  # noqa: PTH118 - this code works on text
+-    if not path.startswith(os.path.normpath(base)):
++    root = os.path.normpath(base)
++    if path != root and not path.startswith(root + os.sep):
+         raise UnsafePathError(f"{user_path!r} leads out of {base!r}")
+     return path

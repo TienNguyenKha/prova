@@ -1,0 +1,12 @@
+diff --git a/injection_guard.py b/injection_guard.py
+--- a/injection_guard.py
++++ b/injection_guard.py
+@@ -3,7 +3,7 @@
+ import re
+ 
+ # Phrases like "ignore instructions", "ignore all instructions", "ignore your instructions".
+-_OVERRIDE = re.compile(r"ignore (all |your |previous )?instructions", re.IGNORECASE)
++_OVERRIDE = re.compile(r"ignore.*instructions", re.IGNORECASE | re.DOTALL)
+ 
+ 
+ def looks_like_injection(text: str) -> bool:

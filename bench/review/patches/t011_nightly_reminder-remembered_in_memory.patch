@@ -1,0 +1,22 @@
+diff --git a/reminder.py b/reminder.py
+--- a/reminder.py
++++ b/reminder.py
+@@ -6,6 +6,8 @@
+ 
+ REMINDER = "This issue has had no activity for a while. Is it still relevant?"
+ 
++_reminded: set[int] = set()
++
+ Issue = Mapping[str, Any]
+ 
+ 
+@@ -28,6 +30,9 @@
+             continue
+         if (today - issue["opened"]).days < idle_days:
+             continue
++        if issue["number"] in _reminded:
++            continue
++        _reminded.add(issue["number"])
+         post_comment(issue["number"], REMINDER)
+         reminded.append(issue["number"])
+     return reminded

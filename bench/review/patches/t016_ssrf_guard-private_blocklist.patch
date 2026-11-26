@@ -1,0 +1,49 @@
+diff --git a/url_guard.py b/url_guard.py
+--- a/url_guard.py
++++ b/url_guard.py
+@@ -1,16 +1,39 @@
+ """Decide whether the server may fetch a URL that a user gave, so it cannot be sent inside the network."""
+ 
++import ipaddress
+ from collections.abc import Callable
+ from urllib.parse import urlparse
+ 
+-BLOCKED_HOSTS = frozenset({"localhost", "127.0.0.1"})
+ 
+-
+ def is_safe_url(url: str, resolve: Callable[[str], list[str]]) -> bool:
+     """True if the server may fetch `url`. `resolve` gives the IP addresses that a host name points to, as DNS
+     does (it raises OSError when the name points nowhere)."""
+-    parsed = urlparse(url)
+-    if parsed.scheme not in ("http", "https"):
++    try:
++        parsed = urlparse(url)
++        host = parsed.hostname
++    except ValueError:
+         return False
+-    host = parsed.hostname or ""
+-    return host not in BLOCKED_HOSTS
++    if parsed.scheme not in ("http", "https") or not host:
++        return False
++    addresses = _addresses(host, resolve)
++    return bool(addresses) and all(_is_public(address) for address in addresses)
++
++
++def _addresses(host: str, resolve: Callable[[str], list[str]]) -> list[str]:
++    """The address the host is written as, or the ones it resolves to; [] if it cannot be resolved."""
++    try:
++        return [str(ipaddress.ip_address(host))]
++    except ValueError:
++        pass
++    try:
++        return list(resolve(host))
++    except OSError:
++        return []
++
++
++def _is_public(address: str) -> bool:
++    try:
++        ip = ipaddress.ip_address(address)
++    except ValueError:
++        return False  # not an address: it cannot be checked
++    return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved)

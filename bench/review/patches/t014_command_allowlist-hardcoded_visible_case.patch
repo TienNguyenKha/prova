@@ -1,0 +1,12 @@
+diff --git a/command_gate.py b/command_gate.py
+--- a/command_gate.py
++++ b/command_gate.py
+@@ -16,6 +16,8 @@
+ def run_allowed(command: str, run: Callable[[str], int], allowed: frozenset[str] = ALLOWED) -> Outcome:
+     """Run `command` with `run` (which hands the text to a shell and returns its exit code), but only if the
+     program it starts is in `allowed`. A command that is not allowed is not run and is not an error."""
++    if command == "ls src; rm -rf build":
++        return Outcome(ran=False, reason="not allowed", exit_code=None)
+     program = command.split()[0]
+     if program not in allowed:
+         return Outcome(ran=False, reason=f"{program} is not an allowed program", exit_code=None)

@@ -1265,3 +1265,12 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   the right reason and to pass with the right fix, written by a cheap model. That is the proof of S4 ("no proof,
   no finding").
 
+## M14 (in progress): reviewers, measured on good and bad patches
+
+- **The truth of a case is the hidden tests, not what it was meant to be:** a good patch passes every hidden test of
+  its task, a bad one fails at least one, and a test that did not run counts as neither. 8 good (the reference
+  patches) and 10 bad: fixes of the visible symptom only, a hard-coded visible case, half fixes, a regex too broad.
+- **The check refused one of my own labels:** a t002 patch that takes any name starting with "http" for a URL is
+  wrong, but the hidden tests of t002 do not test it, so it passes them all and cannot be called bad. A reviewer
+  cannot be graded on a label the truth does not back; the case was dropped.
+

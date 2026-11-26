@@ -71,7 +71,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M14 (next): reviewer, self-check or adversarial. Risk to watch from M13b: the reproduction phase shares the task's budget and once used 31 of t006's 40 tool calls.
+- M14 (in progress; done: the cases, `bench/review/cases.yaml`, 8 good and 10 bad patches checked against the hidden tests; next: the adversary role that blocks only with a failing test, self-review, `bench.review`): reviewer, self-check or adversarial. Risk to watch from M13b: the reproduction phase shares the task's budget and once used 31 of t006's 40 tool calls.
 
 - Measure the M13 loop (`bench.run --loop`) on tasks where a first attempt misses: none of the tasks so far does, with Sonnet or Haiku. Wait for Act V. See the Decisions Log.
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.

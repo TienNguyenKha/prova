@@ -1,0 +1,10 @@
+diff --git a/intent_classifier.py b/intent_classifier.py
+--- a/intent_classifier.py
++++ b/intent_classifier.py
+@@ -23,5 +23,5 @@
+     try:
+         intent = json.loads(reply)["intent"]
+     except (json.JSONDecodeError, KeyError):
+-        return Verdict(blocked=False, intent="unknown")
++        return Verdict(blocked=True, intent="unknown")
+     return Verdict(blocked=intent in BLOCKED_INTENTS, intent=intent)
