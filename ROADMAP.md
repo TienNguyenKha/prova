@@ -77,7 +77,6 @@ Update this file at the end of every working session.
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
 - The hidden tests of t014 do not say whether shell characters inside quotes (`grep "a;b" f`) may run; the reference fix refuses them. Decide before the task is used to compare agents.
 - The user prompts of the fix loop (`fixloop._prompt`) and of a reproduction run (`REPRO_TASK`) are text in the code, outside `src/prova/prompts/` and outside the prompt hash: only the system prompt is hashed. Move them into the prompt layers (M9b rule) before results that depend on them are compared.
-- Decide about `bench/results/`: commit the `.jsonl` results, ignore `bench/results/trajectories/`.
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
 - When the prompt, a tool description or a hook changes: record the cassette again (`bench.run --record` with `--task` for the three recorded tasks, about $0.20), or the Docker replay test fails with a `CassetteMiss`.
@@ -106,6 +105,7 @@ Update this file at the end of every working session.
 |---|---|---|
 | 2026-11-21 | No framework for the core; plain Anthropic SDK | The goal is to understand every layer. LlamaIndex only as a comparison baseline (Act V, S2). |
 | 2026-11-26 | LlamaIndex is the core of the RAG layer of Act V (S2), not only a baseline | Asked by the user. The agent loop, tools and harness stay plain SDK; fetching, snapshots and manifests of S1 stay hand-written (no LlamaIndex reader for the official downloads). LlamaIndex stays inside `kb/` behind `retrieve() -> list[Citation]`; its defaults (OpenAI for LLM and embeddings, LLM query generation in `QueryFusionRetriever`) are set explicitly. Partly reverses the decision of 2026-11-21. |
+| 2026-11-26 | Commit `bench/results/*.jsonl`, ignore `bench/results/trajectories/` | The result lines are small and back every number in LEARNINGS. Trajectories, loop state and the tests agents wrote are large, hold the model's raw output, and can be made again. |
 | 2026-11-21 | Own benchmark built from real bugs, SWE-bench style | `openai/mle-bench` is too costly and its leaderboard is closed; only its design ideas are reused. |
 | 2026-11-21 | Positioned as a security coding agent; defensive scope only | Differentiator is evidence: every finding ships with a runnable PoC. |
 | 2026-11-22 | `uv` for the environment; `src/` layout | Pinned, hashed lockfile; tests import the installed package, not a stray local file. |

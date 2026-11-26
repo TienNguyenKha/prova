@@ -8,3 +8,6 @@ __pycache__/
 kb/snapshots/
 kb/index/
 experiments/runs/
+# Benchmark: the result lines (bench/results/*.jsonl) are committed; what a run leaves next to them is not
+# (trajectories, loop state, escalations, reproduction tests written by agents).
+bench/results/trajectories/
