@@ -1229,4 +1229,10 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **One session for every run on a task:** `Spend` (what was used of the task's budget), `Session` (one sandbox,
   one trajectory, one budget) and `fix_loop` (the M13 loop with the check handed in) came out of `LoopAgent`, so a
   reproduction phase and a fix phase share them without spending more than the task allows.
+- **`ReproAgent`: no fix without a valid reproduction.** The harness runs the reproduction tests once more after
+  the run (the stop hook gives up after two tries) and saves the result next to the trajectory; a run that did not
+  reproduce ends as `cannot_reproduce` (or `budget`) and nothing is fixed. With a valid one, the fix loop runs with
+  `repro` (and `tests`, if the task has them) as its check. The tests are moved out of the workspace at the end,
+  even when the fix crashes, so the grade sees only the fix. Found in review, not by a test: `truncated` was set to
+  False by hand, so cut output could have counted as a reproduction.
 

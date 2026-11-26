@@ -70,12 +70,13 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M13b (in progress; done: `classify_repro`, the `repro` profile and rule 2 of the fix contract, the stop hook `ReproFailsBeforeStop`, the contract of the repro role (`contract/repro/`), roles in `make_agent` (`fix`, `repro`), `Spend`/`Session`/`fix_loop` shared out of `LoopAgent`; next: `ReproAgent` and `bench.run --repro`, the reproduction rate): reproduce first, then fix. A test written by a subagent, checked to fail on the code for the right reason (`ReproCheck`), becomes the `termination_check` of the `Goal`; this is also step 1 of M13 (grill -> goal). Reading the state file to continue a run waits for Act VIII (M25).
+- M13b (in progress; done: `classify_repro`, the `repro` profile and rule 2 of the fix contract, the stop hook `ReproFailsBeforeStop`, the contract of the repro role (`contract/repro/`), roles in `make_agent` (`fix`, `repro`), `Spend`/`Session`/`fix_loop` shared out of `LoopAgent`, `ReproAgent`; next: `bench.run --repro`, the reproduction rate, a real run): reproduce first, then fix. A test written by a subagent, checked to fail on the code for the right reason (`ReproCheck`), becomes the `termination_check` of the `Goal`; this is also step 1 of M13 (grill -> goal). Reading the state file to continue a run waits for Act VIII (M25).
 
 - Measure the M13 loop (`bench.run --loop`) on tasks where a first attempt misses: none of the tasks so far does, with Sonnet or Haiku. Wait for Act V. See the Decisions Log.
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
 - The hidden tests of t014 do not say whether shell characters inside quotes (`grep "a;b" f`) may run; the reference fix refuses them. Decide before the task is used to compare agents.
+- The user prompts of the fix loop (`fixloop._prompt`) and of a reproduction run (`REPRO_TASK`) are text in the code, outside `src/prova/prompts/` and outside the prompt hash: only the system prompt is hashed. Move them into the prompt layers (M9b rule) before results that depend on them are compared.
 - Decide about `bench/results/`: commit the `.jsonl` results, ignore `bench/results/trajectories/`.
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
