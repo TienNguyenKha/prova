@@ -36,7 +36,7 @@ _FAILED_BY_ASSERTION = frozenset({"AssertionError", "Failed"})  # Failed: pytest
 _IMPORT = frozenset({"ImportError", "ModuleNotFoundError"})
 _SYNTAX = frozenset({"SyntaxError", "IndentationError", "TabError"})
 
-_HEADER = re.compile(r"^_{3,} (.+?) _{3,}$")
+_HEADER = re.compile(r"^_+ (.+?) _+$")  # pytest pads a long name with as little as one "_"
 _CAPTURED = re.compile(r"^-{3,} Captured ")
 _FRAME = re.compile(r'^\s+File "(.+?)", line \d+, in ')
 _TRACEBACK = "Traceback (most recent call last):"

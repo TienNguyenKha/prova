@@ -31,7 +31,7 @@ dev = [
 [tool.ruff]
 line-length = 110
 # Sample code with deliberate bugs, used as data for the M3 experiment. Never linted or imported.
-extend-exclude = ["experiments/act1/m3_cases"]
+extend-exclude = ["experiments/act1/m3_cases", "bench/results"]  # results hold tests that agents wrote
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RET", "PTH", "S", "BLE", "T20"]
@@ -50,6 +50,7 @@ known-first-party = ["prova", "bench", "tests"]
 
 [tool.pyright]
 include = ["src", "tests", "bench"]
+exclude = ["bench/results", "**/__pycache__", "**/.*"]  # results hold tests that agents wrote, not our code
 strict = ["src", "bench"]
 venvPath = "."
 venv = ".venv"

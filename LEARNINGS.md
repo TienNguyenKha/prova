@@ -1245,4 +1245,15 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   reproduced; rows of other agents are refused, so numbers are never mixed.
 - **The mutation script lied twice:** it said two mutations survived, and run by hand both were caught. Every
   "survived" is checked by hand before a test is added or a mutation is called equivalent.
+- **First real run of reproduce-first (2026-11-26, Haiku, 3 seeds, t001/t002/t006, $0.20 with the comparison):**
+  `--repro` resolved 6/9 (0.67 ± 0.00 by seed, $0.157), one run 8/9 (0.89 ± 0.11, $0.042). The reproduction rate
+  was 8/9 (red for the right reason on the bug, green with the reference patch). Three reasons: (1) a bug of mine,
+  a valid reproduction refused because pytest pads the header of a long test name with ONE underscore and the regex
+  wanted three (fixed, with a test made from the real header; the kept test now classifies as valid); (2) the shared
+  budget: the reproduction phase used most of the 40 tool calls of t006 and the fix ran out; (3) a test right but
+  narrower than the bug (t001): red on the bug, green with the reference patch, and still the hidden tests failed
+  after the fix made it green. The fix loop again never needed a second attempt. 3 tasks and 3 seeds: not enough
+  to conclude, but the direction is clear.
+- **Tests written by agents are data, not our code:** the kept reproduction tests under `bench/results/` made ruff
+  and pyright report 74 and 162 errors; `bench/results` is now excluded from both.
 
