@@ -77,8 +77,7 @@ Update this file at the end of every working session.
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
 - The hidden tests of t014 do not say whether shell characters inside quotes (`grep "a;b" f`) may run; the reference fix refuses them. Decide before the task is used to compare agents.
-- Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
-- Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
+- Close M5: the user rewrites the LEARNINGS entry of M5 in their own words (the boxes of Act II are ticked).
 - When the prompt, a tool description or a hook changes: record the cassette again (`bench.run --record` with `--task` for the three recorded tasks, about $0.20), or the Docker replay test fails with a `CassetteMiss`.
 - Check `bench/pricing.yaml` against the official price page (it was copied from a cached table of 2026-11-03).
 - Use `ruff check . --no-cache` before a commit (the cache hid 4 errors, now fixed).

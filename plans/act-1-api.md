@@ -140,7 +140,7 @@ Mọi dòng trong bảng kiểm chứng xanh; `uv run ruff check .`, `uv run pyr
 - Lỗi nào nên là exception, lỗi nào nên là dữ liệu (`ToolResult`)? Ranh giới nằm ở đâu?
 - Vì sao thứ tự tool phải ổn định?
 
-- [ ] Hoàn thành
+- [x] Hoàn thành (2026-11-22; mục tương ứng trong `LEARNINGS.md`)
 
 ---
 
@@ -189,7 +189,7 @@ Giải thích được từng trường của response mà không cần tài li�
 - `stop_reason` có những giá trị nào, mỗi giá trị nghĩa là gì và code nên phản ứng ra sao?
 - `count_tokens` và `usage.input_tokens` có khớp không? Vì sao?
 
-- [ ] Hoàn thành
+- [x] Hoàn thành (2026-11-22; mục tương ứng trong `LEARNINGS.md`)
 
 ---
 
@@ -255,7 +255,7 @@ Có biểu đồ token theo lượt trong `LEARNINGS.md`, và giải thích đư
 
 - TTFT chiếm bao nhiêu % tổng thời gian? Streaming giúp gì cho người dùng, và **không** giúp gì?
 
-- [ ] Hoàn thành
+- [x] Hoàn thành (2026-11-22; mục tương ứng trong `LEARNINGS.md`)
 
 ---
 
@@ -320,7 +320,7 @@ Giải thích được từng lỗi ở bước 5 và vì sao API bắt buộc n
 - Vì sao API bắt giữ nguyên block `tool_use` trong lịch sử?
 - Khi `is_error: true`, model làm gì khác so với khi tool trả chuỗi "Error: …" bình thường?
 
-- [ ] Hoàn thành
+- [x] Hoàn thành (2026-11-22; mục tương ứng trong `LEARNINGS.md`)
 
 ---
 
@@ -411,14 +411,14 @@ Có bảng so sánh với số liệu thật, và `extract` được dùng lại
 - Cách xin JSON bằng prompt hỏng theo những kiểu nào? Kiểu nào nguy hiểm nhất cho guardrail?
 - Vì sao API bỏ ép `tool_choice` mà vẫn giữ được output đúng schema?
 
-- [ ] Hoàn thành
+- [x] Hoàn thành (2026-11-22; mục tương ứng trong `LEARNINGS.md`)
 
 ---
 
 ## Cuối Act I
 
-- [ ] Review toàn bộ code của Act bằng [checklist anti-pattern](shared/anti-patterns.md).
-- [ ] Cập nhật `ROADMAP.md` và Decisions Log.
-- [ ] `LEARNINGS.md` có mục cho M0–M3.
+- [x] Review toàn bộ code của Act bằng [checklist anti-pattern](shared/anti-patterns.md). (Kết quả trong `ROADMAP.md`, mục "Act I review".)
+- [x] Cập nhật `ROADMAP.md` và Decisions Log.
+- [x] `LEARNINGS.md` có mục cho M0–M3.
 
 [Act II: Harness →](act-2-harness.md)
