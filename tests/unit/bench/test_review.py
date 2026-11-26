@@ -257,3 +257,13 @@ def test_a_reviewer_whose_reviews_all_crashed_is_not_a_rubber_stamp() -> None:
 
 def test_the_ceiling_of_an_adversary_review_is_the_money_limit_given() -> None:
     assert ceiling_usd(cases=2, seeds=1, reviewers=["adversary"], task_limit=0.25) == pytest.approx(0.5)
+
+
+def test_the_config_given_for_a_reviewer_is_written_in_its_lines(tmp_path: Path) -> None:
+    tasks, case = a_task(tmp_path)
+    config = {"model": "m", "task_prompts": {"self_review": "h" * 64}}
+    line = review_case(
+        case, "self", Seen(), tasks=tasks, results=tmp_path / "r.jsonl", run_id="r", seed=0, pricing=PRICING,
+        config=config,
+    )  # fmt: skip
+    assert line["config"] == config

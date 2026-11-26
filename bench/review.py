@@ -17,7 +17,7 @@ import json
 import sys
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -57,6 +57,7 @@ def review_case(  # noqa: PLR0913 - everything one review needs, named
     run_id: str,
     seed: int,
     pricing: Pricing | None,
+    config: Mapping[str, Any] | None = None,
     clock: Callable[[], float] = time.monotonic,
 ) -> dict[str, Any]:
     """Let `reviewer` judge the patch of `case` and append one line to `results`."""
@@ -66,7 +67,7 @@ def review_case(  # noqa: PLR0913 - everything one review needs, named
     trajectory = results.parent / "trajectories" / f"{run_id}-{name}-{case.id}-s{seed}.jsonl"
     line: dict[str, Any] = {
         "run_id": run_id, "reviewer": name, "case": case.id, "task": case.task, "label": case.label,
-        "kind": case.kind, "seed": seed,
+        "kind": case.kind, "seed": seed, "config": dict(config or {}),
     }  # fmt: skip
     with tempfile.TemporaryDirectory() as tmp:
         workspace = Path(tmp) / "patched"
@@ -244,6 +245,7 @@ def _execute(cases: list[Case], seeds: int, names: list[str]) -> int:  # needs t
     from prova.config import load_settings  # noqa: PLC0415
     from prova.harness.permissions import load_profiles  # noqa: PLC0415
     from prova.llm.client import make_client  # noqa: PLC0415
+    from prova.prompts.tasks import task_prompt_hashes  # noqa: PLC0415
     from prova.sandbox.docker import DockerSandbox  # noqa: PLC0415
 
     settings = load_settings()
@@ -265,6 +267,12 @@ def _execute(cases: list[Case], seeds: int, names: list[str]) -> int:  # needs t
         reviewers["adversary"] = AdversaryReviewer(product("adversary"))
     run_id = new_run_id(datetime.now(UTC))
     results = BENCH / "results" / f"review-{run_id}.jsonl"
+    prompts = {
+        "none": {},
+        "self": task_prompt_hashes("self_review"),
+        "adversary": task_prompt_hashes("adversary"),
+    }
+    configs = {name: {"model": settings.model, "task_prompts": prompts[name]} for name in names}
     rows = [
         review_case(
             case,
@@ -275,6 +283,7 @@ def _execute(cases: list[Case], seeds: int, names: list[str]) -> int:  # needs t
             run_id=run_id,
             seed=seed,
             pricing=pricing,
+            config=configs[name],
         )
         for seed in range(seeds)
         for case in cases

@@ -24,19 +24,12 @@ from prova.errors import StructuredError
 from prova.llm.client import LLMClient
 from prova.llm.usage import UsageLog
 from prova.prompts.render import render_user_context
+from prova.prompts.tasks import task_prompt
 from prova.structured import extract
 
 Verdict = Literal["block", "pass"]
-ADVERSARY_TASK = (
-    "Above are the report of a bug and the patch that is meant to fix it; the patch is already applied to "
-    f"the code. Try to break the patch: write tests in {ATTACK_DIR}/ that assert what the code should do and "
-    "fail on the patched code. Run them before you end."
-)
-SELF_REVIEW_TASK = (
-    "Above are the report of a bug and the patch you wrote to fix it. Review your own patch: does it fix "
-    "the bug the report describes, all of it, without breaking anything else? Answer with a verdict, block "
-    "or pass, and the reason in one or two sentences."
-)
+ADVERSARY_TASK = task_prompt("adversary", folder=ATTACK_DIR)
+SELF_REVIEW_TASK = task_prompt("self_review")
 ATTACK_TIMEOUT_S = 120.0
 
 

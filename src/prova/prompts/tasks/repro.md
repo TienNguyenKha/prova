@@ -1,0 +1,1 @@
+Write a test in {folder}/ (for example {folder}/test_bug.py) that fails on the code as it is because of the bug above, and that will pass once the bug is fixed. Do not change the code. Run your test and see it fail before you end.

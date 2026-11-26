@@ -23,6 +23,7 @@ from prova.agent.feedback import Lesson, make_lesson, structured_feedback
 from prova.harness.redact import Redactor
 from prova.llm.usage import UsageLog
 from prova.prompts.render import render_user_context
+from prova.prompts.tasks import task_prompt
 
 _EXIT_PASSED = 0
 _EXIT_NO_TESTS = 5  # pytest found nothing to run
@@ -164,10 +165,10 @@ def run_fix_loop(  # noqa: PLR0913 - everything the loop needs, named
 def _prompt(goal: Goal, feedback: str | None) -> str:
     parts = [
         render_user_context(goal.statement),  # the goal comes from an issue: it is data from somebody else
-        f"The goal is met when this command exits with code 0: {shlex.join(goal.termination_check)}",
+        task_prompt("fix_goal", check=shlex.join(goal.termination_check)),
     ]
     if feedback:
-        parts.append(f"The last attempt did not meet it:\n{feedback}")
+        parts.append(task_prompt("fix_feedback", feedback=feedback))
     return "\n\n".join(parts)
 
 

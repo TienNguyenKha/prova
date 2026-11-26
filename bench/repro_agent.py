@@ -24,12 +24,9 @@ from bench.runner import AgentRun
 from bench.task import Task
 from prova.agent.repro import REPRO_ARGV, REPRO_DIR, ReproCheck, classify_repro
 from prova.prompts.render import render_user_context
+from prova.prompts.tasks import task_prompt, task_prompt_hashes
 
-REPRO_TASK = (
-    f"Write a test in {REPRO_DIR}/ (for example {REPRO_DIR}/test_bug.py) that fails on the code as it is "
-    "because of the bug above, and that will pass once the bug is fixed. Do not change the code. "
-    "Run your test and see it fail before you end."
-)
+REPRO_TASK = task_prompt("repro", folder=REPRO_DIR)
 REPRO_TIMEOUT_S = 120.0
 
 
@@ -53,7 +50,8 @@ class ReproAgent:
             "prompt_hash": self.reproducer.config["prompt_hash"],
         }
         loop = {"max_attempts": self.max_attempts, "check": f"{REPRO_DIR} (and tests, if the task has them)"}
-        return {**self.fixer.config, "repro": repro, "loop": loop}
+        prompts = task_prompt_hashes("repro", "fix_goal", "fix_feedback")
+        return {**self.fixer.config, "repro": repro, "loop": loop, "task_prompts": prompts}
 
     def __call__(self, task: Task, workspace: Path, trajectory: Path) -> AgentRun:
         with open_session(self.fixer, task, workspace, trajectory, self.seconds) as session:

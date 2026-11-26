@@ -25,6 +25,7 @@ from prova.agent.workspace_check import read_text_files, run_check
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
 from prova.llm.usage import UsageLog
+from prova.prompts.tasks import task_prompt_hashes
 from prova.sandbox.base import Sandbox
 
 CHECK = ("python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests")
@@ -161,7 +162,12 @@ class LoopAgent:
 
     @property
     def config(self) -> dict[str, Any]:
-        return {**self.product.config, "loop": {"max_attempts": self.max_attempts, "check": list(CHECK)}}
+        loop = {"max_attempts": self.max_attempts, "check": list(CHECK)}
+        return {
+            **self.product.config,
+            "loop": loop,
+            "task_prompts": task_prompt_hashes("fix_goal", "fix_feedback"),
+        }
 
     def __call__(self, task: Task, workspace: Path, trajectory: Path) -> AgentRun:
         with open_session(self.product, task, workspace, trajectory, self.seconds) as session:

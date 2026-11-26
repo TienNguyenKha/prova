@@ -30,6 +30,7 @@ from prova.agent.loop import AgentResult
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
 from prova.llm.usage import UsageLog, UsageRecord
+from prova.prompts.tasks import task_prompt_hash
 from prova.sandbox.base import ExecResult, Sandbox
 from tests.fakes import FakeSandbox
 from tests.unit.agent.test_fingerprint import EQ, KEY, output
@@ -269,3 +270,12 @@ def test_the_fix_loop_runs_the_check_it_is_given(tmp_path: Path) -> None:
     assert result.status == "done"
     assert [c["argv"] for c in r.product.sandbox.calls] == [check, check]
     assert "python -m pytest -q -- repro tests" in r.product.seen[0]["prompt"]
+
+
+def test_the_config_has_the_hashes_of_the_task_prompts_the_loop_uses(tmp_path: Path) -> None:
+    r = rig(tmp_path, GREEN)
+    hashes = LoopAgent(r.product).config["task_prompts"]  # type: ignore[arg-type]
+    assert hashes == {
+        "fix_goal": task_prompt_hash("fix_goal"),
+        "fix_feedback": task_prompt_hash("fix_feedback"),
+    }

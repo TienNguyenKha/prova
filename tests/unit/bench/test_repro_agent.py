@@ -22,6 +22,7 @@ from prova.agent.repro import REPRO_ARGV
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
 from prova.llm.usage import UsageLog, UsageRecord
+from prova.prompts.tasks import task_prompt_hash
 from prova.sandbox.base import ExecResult, Sandbox
 from tests.fakes import FakeSandbox
 from tests.unit.agent.test_fingerprint import EQ, output
@@ -235,3 +236,8 @@ def test_tests_kept_by_an_earlier_run_of_the_same_trajectory_are_replaced_not_ne
     (r.kept(".repro") / "old_test.py").write_text("# old\n", encoding="utf-8")
     r.run()
     assert sorted(p.name for p in r.kept(".repro").iterdir()) == ["test_bug.py"]
+
+
+def test_the_config_has_the_hash_of_the_reproduction_prompt_too(tmp_path: Path) -> None:
+    hashes = Rig(tmp_path).agent().config["task_prompts"]
+    assert hashes["repro"] == task_prompt_hash("repro") and "fix_goal" in hashes

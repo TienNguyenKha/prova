@@ -1,0 +1,1 @@
+Above are the report of a bug and the patch that is meant to fix it; the patch is already applied to the code. Try to break the patch: write tests in {folder}/ that assert what the code should do and fail on the patched code. Run them before you end.

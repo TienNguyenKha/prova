@@ -77,7 +77,6 @@ Update this file at the end of every working session.
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
 - Look at t001: is its issue enough to know that negated phrases must stay unflagged? (the first real run failed there)
 - The hidden tests of t014 do not say whether shell characters inside quotes (`grep "a;b" f`) may run; the reference fix refuses them. Decide before the task is used to compare agents.
-- The user prompts of the fix loop (`fixloop._prompt`) and of a reproduction run (`REPRO_TASK`) are text in the code, outside `src/prova/prompts/` and outside the prompt hash: only the system prompt is hashed. Move them into the prompt layers (M9b rule) before results that depend on them are compared.
 - Close Act I: tick the milestone boxes and the end-of-Act checklist in `plans/act-1-api.md`.
 - Close M5: rewrite the LEARNINGS entry in your own words, tick the boxes in `plans/act-2-harness.md`, commit.
 - When the prompt, a tool description or a hook changes: record the cassette again (`bench.run --record` with `--task` for the three recorded tasks, about $0.20), or the Docker replay test fails with a `CassetteMiss`.

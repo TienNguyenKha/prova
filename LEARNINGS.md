@@ -1294,4 +1294,9 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   nothing in their last 10 reviews, and the cases where self-review and the adversary disagree. The reviewer gets
   `repo/` with the patch applied, never `hidden_tests/`. The ceiling counts an adversary review at the money limit
   of its task, so it looks large ($29.70 for 18 cases, 3 seeds, two reviewers) for an expected spend near $1.
+- **Every word a run is given now has a hash:** the prompts of a task (fix loop, reproduction, adversary,
+  self-review) moved from strings in the code to templates in `src/prova/prompts/tasks/`, word for word, filled in
+  one pass so that braces in a traceback or an issue are never read as places. Their hashes go into the config
+  (`task_prompts`), next to the hash of the system prompt. Done before the real run of M14, so its results can be
+  tied to the words used.
 
