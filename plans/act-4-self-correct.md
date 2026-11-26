@@ -222,6 +222,12 @@ class AdversaryVerdict(BaseModel):
 4. Khi builder và adversary **bất đồng**, đó là thứ đưa cho người xem (Appendix B: *"review the disagreements, not
    the output"*).
 5. ○ Debate nhiều vòng (Generator/Challenger, sách ch6) cho task rủi ro cao.
+6. ○ **Cấu hình thứ tư: một "decision model" làm giám khảo** (ví dụ Jev của TypeSafe AI, qua `jevals` của Openlayer):
+   model không sinh văn bản, chỉ trả một quyết định có kiểu (`approve` / `block`) cho diff + issue. So trên cùng bộ case
+   với tự review và adversary có bằng chứng: rẻ và nhanh hơn, nhưng chỉ là lời, không có test. Cần kiểm trước: cách
+   truy cập (danh sách chờ, hoặc qua Vercel AI Gateway: **thêm một key và một nhà cung cấp**, dự án hiện chỉ có key
+   Anthropic), điều khoản về dữ liệu (diff là code của người dùng), và các con số tốc độ / chi phí do nhà cung cấp tự
+   công bố (chưa kiểm chứng).
 
 ### 📏 Đo
 

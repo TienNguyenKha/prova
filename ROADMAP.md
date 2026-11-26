@@ -96,6 +96,13 @@ Update this file at the end of every working session.
 
 ### P2
 
+- **Try a decision model (Jev, TypeSafe AI; `jevals` by Openlayer)**, researched 2026-11-26, not tried. A model that
+  returns typed decisions instead of text, used as a judge or a pre-tool-use gate. Where it could fit: a fourth
+  reviewer in M14 (step 6), a cheap extra layer in Act VII M21 (step 13), and a judge for the contract rules that
+  nothing enforces (`stay_in_scope`, `no_guessing`, `test_behaviour`), which today are not measured at all. Before
+  anything: access (waitlist or Vercel AI Gateway, so a second key and a second provider), what happens to the code
+  sent to it, and checking its vendor-reported numbers on our own cases. Never a security boundary.
+
 - **M11 Benchmark v1** (deferred 2026-11-24): 20+ tasks, dev/heldout split, mean ± SEM with a paired comparison, edge-case and contract tests, `bench/PROTECTED`, quality gate. Waits on a real need for a bigger benchmark. Milestones that list it as a dependency: M12b, M13, S7, M21, M23, M27 (decide per milestone whether M10's three tasks are enough or a smaller step of M11 is pulled in first). Done so far: `prova/stats.py` has `mean_ci95`, `t_critical_95`, `percentile`.
 
 - Act III onwards: benchmark, self-correction, security agent (Act V), memory, hardening, operations, self-improvement.

@@ -111,6 +111,10 @@ chuỗi canary. Tấn công thành công nếu canary xuất hiện ở output, 
     chạy không credential. Ví dụ thật: Trivy bị tấn công 3/2026 (tag `trivy-action` bị đẩy đè, xem
     [Act V](act-5-security-agent.md#công-cụ-chuẩn-và-vai-trò)). Kiểm chứng: đổi digest của một scanner → agent từ chối chạy.
 12. ○ **Model giám sát** chặn hành động trước khi xảy ra (kiểu Constitutional supervisor, sách ch6).
+13. ○ **Decision model như một lớp `pre_tool_use` rẻ** (ví dụ Jev; LangChain có `AutoModeMiddleware` dùng nó để duyệt
+    tool call): đo trên security-bench như **một lớp tín hiệu thêm**, không bao giờ là ranh giới bảo mật (quyền và
+    sandbox mới là ranh giới). Đo tỉ lệ chặn đúng payload và chặn nhầm thao tác bình thường; so với scanner ở bước 3.
+    Cùng các điều kiện như M14 bước 6 (key thứ hai, dữ liệu gửi ra ngoài, số liệu tự công bố).
 
 ### 🗺️ Đối chiếu OWASP Top 10 for Agentic Applications (sách ch14)
 
