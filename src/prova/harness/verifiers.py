@@ -7,7 +7,7 @@ model wrote ever runs on the host. A check that could not run is never reported 
 
 from pathlib import Path
 
-from prova.agent.repro import REPRO_ARGV, classify_repro
+from prova.agent.repro import ATTACK_ARGV, REPRO_ARGV, classify_repro
 from prova.errors import ToolError
 from prova.harness.hooks import HookDecision, HookEvent
 from prova.tools.base import RunContext
@@ -127,6 +127,44 @@ class ReproFailsBeforeStop:
         shown = _keep_end(result.output, self._max_output_chars)
         return HookDecision.continue_run(
             f"the reproduction tests do not show the bug yet: {check.reason}\n{shown}"
+        )
+
+
+class AttacksWrittenBeforeStop:
+    """The stop hook of an adversary run (M14): it may end only once it has tried at least one attack, as a
+    test that runs. Whether an attack broke the patch is not decided here: the harness reads the tests."""
+
+    name = "attacks_written_before_stop"
+
+    def __init__(self, *, timeout_s: float = 120.0, max_output_chars: int = 3_000) -> None:
+        self._timeout_s = timeout_s
+        self._max_output_chars = max_output_chars
+
+    def __call__(self, ev: HookEvent) -> HookDecision:
+        sandbox = ev.ctx.sandbox
+        if sandbox is None:
+            return HookDecision.continue_run("the attack tests cannot be checked: this run has no sandbox")
+        result = sandbox.run(ATTACK_ARGV, timeout_s=self._timeout_s, cwd="/work")
+        if result.timed_out:
+            return HookDecision.continue_run(
+                f"the attack tests did not finish within {self._timeout_s:g} seconds: make them faster"
+            )
+        if (
+            result.exit_code == _EXIT_PASSED
+        ):  # every attack ran; the exit code says so even if the output was cut
+            return HookDecision.allow("every attack ran and the patch held against it")
+        if result.exit_code == _EXIT_NO_TESTS:
+            return HookDecision.continue_run(
+                "no attack was written: write at least one, as a test in attack/"
+            )
+        check = classify_repro(
+            result.output, exit_code=result.exit_code, truncated=result.truncated, root="/work"
+        )
+        if check.valid:
+            return HookDecision.allow(f"an attack broke the patch: {check.reason}")
+        shown = _keep_end(result.output, self._max_output_chars)
+        return HookDecision.continue_run(
+            f"the attack tests do not show anything yet: {check.reason}\n{shown}"
         )
 
 

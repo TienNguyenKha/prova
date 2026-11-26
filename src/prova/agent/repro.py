@@ -28,9 +28,17 @@ Kind = Literal[
     "unreadable",
 ]
 REPRO_DIR = "repro"  # where a reproduction run writes its tests (the `repro` profile may write only there)
-# How the reproduction tests are run, by the stop hook and by the harness: native tracebacks show where an
-# error was raised; no -x, so every test is seen.
-REPRO_ARGV = ["python", "-m", "pytest", "-q", "--tb=native", "-p", "no:cacheprovider", "--", REPRO_DIR]
+ATTACK_DIR = "attack"  # where an adversary writes the tests that try to break a patch (M14)
+
+
+def pytest_argv(folder: str) -> list[str]:
+    """How tests that must fail for the right reason are run, by the stop hooks and by the harness: native
+    tracebacks show where an error was raised; no -x, so every test is seen."""
+    return ["python", "-m", "pytest", "-q", "--tb=native", "-p", "no:cacheprovider", "--", folder]
+
+
+REPRO_ARGV = pytest_argv(REPRO_DIR)
+ATTACK_ARGV = pytest_argv(ATTACK_DIR)
 VALID_KINDS = frozenset({"assertion", "exception_in_code"})
 _FAILED_BY_ASSERTION = frozenset({"AssertionError", "Failed"})  # Failed: pytest.fail, DID NOT RAISE
 _IMPORT = frozenset({"ImportError", "ModuleNotFoundError"})

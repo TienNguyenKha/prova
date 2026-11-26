@@ -71,7 +71,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M14 (in progress; done: the cases, `bench/review/cases.yaml`, 8 good and 10 bad patches checked against the hidden tests; next: the adversary role that blocks only with a failing test, self-review, `bench.review`): reviewer, self-check or adversarial. Risk to watch from M13b: the reproduction phase shares the task's budget and once used 31 of t006's 40 tool calls.
+- M14 (in progress; done: the cases, `bench/review/cases.yaml`, 8 good and 10 bad patches checked against the hidden tests, the `adversary` profile and its stop hook `AttacksWrittenBeforeStop`; next: the adversary contract and role, the verdict read from the attack tests, self-review, `bench.review`): reviewer, self-check or adversarial. Risk to watch from M13b: the reproduction phase shares the task's budget and once used 31 of t006's 40 tool calls.
 
 - Measure the M13 loop (`bench.run --loop`) on tasks where a first attempt misses: none of the tasks so far does, with Sonnet or Haiku. Wait for Act V. See the Decisions Log.
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
@@ -84,6 +84,7 @@ Update this file at the end of every working session.
 - Check `bench/pricing.yaml` against the official price page (it was copied from a cached table of 2026-11-03).
 - Use `ruff check . --no-cache` before a commit (the cache hid 4 errors, now fixed).
 - Check `test_command` of the report (it is trusted today), and decide whether the hook mechanisms should try the hook instead of looking for it.
+- `ruff format --check src tests` finds 6 files formatted before the current rules (`src/prova/app.py`, `src/prova/harness/trajectory.py`, four tests): format them in a commit of their own.
 - Decide whether the tests that start real MCP servers (about 20 s of the default run) get the `slow` marker.
 - Sandbox for MCP servers written by others (needs interactive stdin in `DockerSandbox`); before M21.
 - See a real model get sent back by the stop hook (needs a task where a fix is not obviously complete).

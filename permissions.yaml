@@ -19,3 +19,9 @@ profiles:
     # A reproduction test shows the bug on the code as it is: it may be written only in repro/, and nothing else.
     write_paths: ["repro/**"]
     deny_paths: [".git/**", "hidden_tests/**"]
+
+  adversary:
+    allow: [read, write, exec]
+    # An adversary tries to break a patch with tests (M14): it may write only in attack/, and nothing else.
+    write_paths: ["attack/**"]
+    deny_paths: [".git/**", "hidden_tests/**"]

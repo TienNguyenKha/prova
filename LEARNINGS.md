@@ -1273,4 +1273,8 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
 - **The check refused one of my own labels:** a t002 patch that takes any name starting with "http" for a URL is
   wrong, but the hidden tests of t002 do not test it, so it passes them all and cannot be called bad. A reviewer
   cannot be graded on a label the truth does not back; the case was dropped.
+- **An adversary may pass, but not without trying:** its stop hook lets it end when its attack tests ran, whether
+  they broke the patch (red for the right reason) or not (green), and sends it back when it wrote none or one that
+  is broken itself. The verdict is not the hook's; the harness reads it from the tests. One `pytest_argv(folder)`
+  runs reproduction and attack tests the same way.
 

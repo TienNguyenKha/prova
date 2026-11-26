@@ -106,3 +106,32 @@ def test_the_repro_profile_can_read_the_code_but_not_the_hidden_tests(tmp_path: 
         dispatch("read_file", {"path": "hidden_tests/test_fix.py"}, ctx).error_code
         == ErrorCode.PERMISSION_DENIED
     )
+
+
+# --- attack tests (M14): the adversary writes them, and only them ------------------------------------
+
+
+@pytest.mark.parametrize("path", ["attack/test_break.py", "attack/helpers.py", "attack/sub/test_more.py"])
+def test_the_adversary_profile_can_write_in_attack(tmp_path: Path, path: str) -> None:
+    result = dispatch("create_file", {"path": path, "content": "x = 1\n"}, context(tmp_path, "adversary"))
+    assert result.success, f"{path}: {result.message}"
+
+
+@pytest.mark.parametrize(
+    "path", ["lib.py", "repro/test_bug.py", "tests/test_y.py", "conftest.py", "attackx/a.py"]
+)
+def test_the_adversary_profile_cannot_write_anything_outside_attack(tmp_path: Path, path: str) -> None:
+    result = dispatch("create_file", {"path": path, "content": "x = 1\n"}, context(tmp_path, "adversary"))
+    assert result.error_code == ErrorCode.PERMISSION_DENIED, path
+
+
+def test_the_adversary_profile_can_read_the_code_but_not_the_hidden_tests(tmp_path: Path) -> None:
+    for path in ("lib.py", "hidden_tests/test_fix.py"):
+        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / path).write_text("x = 1\n", encoding="utf-8")
+    ctx = context(tmp_path, "adversary")
+    assert dispatch("read_file", {"path": "lib.py"}, ctx).success
+    assert (
+        dispatch("read_file", {"path": "hidden_tests/test_fix.py"}, ctx).error_code
+        == ErrorCode.PERMISSION_DENIED
+    )
