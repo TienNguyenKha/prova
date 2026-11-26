@@ -114,7 +114,14 @@ ch20 `fix_loop.py`, `online/loop_harness.py`; ch04 `online/escalation_chains.py`
 
 Mức tăng resolved đo được (hoặc không tăng, kèm phân tích vì sao).
 
-- [ ] Hoàn thành
+- [x] Hoàn thành (2026-11-26), theo vế "không tăng, kèm phân tích": 23 lần chạy thật (Sonnet và Haiku, 3 seed với
+  Haiku) trên 5 task có test nhìn thấy đều xong ngay lần đầu, vì test nhìn thấy cộng hook `TestsBeforeStop` đã đủ;
+  phân tích trong `LEARNINGS.md`, quyết định trong Decisions Log của `ROADMAP.md`. Đo lại khi có task mà lần đầu trượt.
+- Bước 1 (grill → goal) **gộp vào M13b**: `termination_check` của `Goal` là test tái hiện đã được kiểm là đỏ đúng lý
+  do, chắc hơn một lệnh kiểm do model đoán từ issue.
+- Phần "tiếp tục được" của bước 5 (đọc state file để chạy tiếp) **chờ Act VIII** (M25, worker chạy lâu); state file
+  đã được ghi.
+- Lệch so với plan: chưa có M11, nên đo trên `dev` (8 task) chứ không trên heldout.
 
 ---
 
@@ -150,7 +157,8 @@ class ReproCheck(BaseModel):
 1. Subagent (profile chỉ được ghi vào `tests/repro/`) viết test tái hiện từ issue.
 2. Harness chạy test trên code hiện tại, phân loại `failure_kind`. `import_error`, `syntax_error`, `collection_error`
    là **tái hiện giả**.
-3. Test hợp lệ được thêm vào `termination_check` của goal M13.
+3. Test hợp lệ được thêm vào `termination_check` của goal M13. Đây cũng là bước 1 (grill → goal) của M13, được
+   gộp vào đây: issue → test tái hiện hợp lệ → `Goal`; issue không đủ để viết test thì `open_questions` → escalate.
 4. Kết thúc phiên: test tái hiện có thể giữ lại làm test hồi quy (tùy chọn của người dùng).
 
 ### 📏 Đo (dùng lại task của M11)

@@ -70,7 +70,7 @@ Update this file at the end of every working session.
 
 ### P0 (next up)
 
-- M13 still to do: read the state file to continue a run (D2); the `Goal` that a model writes from an issue (grill -> goal, C). Measuring the loop waits for Act V (see the next line and the Decisions Log).
+- M13b (next): reproduce first, then fix. A test written by a subagent, checked to fail on the code for the right reason (`ReproCheck`), becomes the `termination_check` of the `Goal`; this is also step 1 of M13 (grill -> goal). Reading the state file to continue a run waits for Act VIII (M25).
 
 - Measure the M13 loop (`bench.run --loop`) on tasks where a first attempt misses: none of the tasks so far does, with Sonnet or Haiku. Wait for Act V. See the Decisions Log.
 - M12 step 5 (scheduled CI gate): needs a CI first, and a baseline with SEM, so it waits for M11. See the Decisions Log.
@@ -153,3 +153,4 @@ Update this file at the end of every working session.
 | 2026-11-24 | M12 closed without its scheduled CI gate (step 5) | The repo has no CI, and a gate that compares with a baseline needs the bigger benchmark of M11, which is deferred. The local form exists: the Docker replay test fails when a change of the harness moves the chain of tool calls. |
 | 2026-11-24 | The M13 loop is outside the stop hook, keeps the patch between attempts, and is `stuck` after 2 equal fingerprints in a row | The hook already sends the agent back twice with raw output; the loop adds a fresh context, a record and limits. Keeping the patch lets a partial step count. Both numbers are guesses to be measured. |
 | 2026-11-25 | Stop measuring the M13 loop for now; keep it as a safety net | 8 runs with Sonnet and 15 with Haiku (3 seeds) on five tasks with a visible test were all fixed at the first attempt, so the loop could not be shown to help (`bench/results/2026-11-25T16-53_76ecaf.jsonl`). Tasks over several files would cost much more to build; tasks that are hard for real come in Act V. |
+| 2026-11-26 | M13 closed; grill -> goal goes into M13b; continuing from the state file waits for Act VIII | M13 is done by its own rule (no gain, with the reason). A goal whose check is a reproduction test checked to fail for the right reason is firmer than a check guessed from the issue. Continuing a run only matters for a long-running worker. |
