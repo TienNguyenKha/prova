@@ -1281,4 +1281,8 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   the same form as the others; its "you get nothing for agreeing" is only a request, and its "done" is "you tried
   at least one attack, as a test that runs". The test of the repro contract became one test parametrized by role,
   so a new role is one more line, not one more file.
+- **No proof, no block:** `AdversaryReviewer` runs the adversary on the patched code, then the harness runs the
+  attack tests and reads the verdict itself: "block" only for an attack red for the right reason; green attacks,
+  an attack broken by its own mistake, cut output or a timeout are "pass", with "no proof" in the reason. The issue
+  and the diff go to the model in one untrusted block: the diff, too, was written by another agent.
 

@@ -60,7 +60,7 @@ class ReproAgent:
             try:
                 status, detail = self._phases(task, session, trajectory)
             finally:
-                _keep_out_of_the_workspace(workspace, trajectory)
+                keep_out_of_the_workspace(workspace, trajectory, REPRO_DIR)
         return AgentRun(status=status, detail=detail, usage=session.spend.used)
 
     def _phases(self, task: Task, session: Session, trajectory: Path) -> tuple[str, str]:
@@ -72,7 +72,7 @@ class ReproAgent:
             check = classify_repro(
                 found.output, exit_code=found.exit_code, truncated=found.truncated, root="/work"
             )
-        _save(trajectory, check)
+        save_check(trajectory, REPRO_DIR, check)
         if not check.valid:
             if written.status == "budget":
                 return "escalated:budget", f"the reproduction run ran out of budget: {written.detail}"
@@ -88,18 +88,19 @@ class ReproAgent:
         return status_of(result), result.detail
 
 
-def _save(trajectory: Path, check: ReproCheck) -> None:
-    path = trajectory.with_name(f"{trajectory.stem}.repro.json")
+def save_check(trajectory: Path, folder: str, check: ReproCheck) -> None:
+    """Keep how the tests in `folder` failed, next to the trajectory, as `<run>.<folder>.json`."""
+    path = trajectory.with_name(f"{trajectory.stem}.{folder}.json")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(asdict(check), indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def _keep_out_of_the_workspace(workspace: Path, trajectory: Path) -> None:
-    """Move repro/ next to the trajectory: the grade must see only the fix."""
-    source = workspace / REPRO_DIR
+def keep_out_of_the_workspace(workspace: Path, trajectory: Path, folder: str) -> None:
+    """Move `folder` (tests an agent wrote) next to the trajectory: the grade must see only the code."""
+    source = workspace / folder
     if not source.exists():
         return
-    target = trajectory.with_name(f"{trajectory.stem}.{REPRO_DIR}")
+    target = trajectory.with_name(f"{trajectory.stem}.{folder}")
     if target.exists():
         shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
