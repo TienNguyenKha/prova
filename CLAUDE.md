@@ -46,11 +46,16 @@ Mọi lỗ hổng báo ra phải có PoC test chạy được trong sandbox. Đ�
 - `~/atlas-agents/OtherConcepts/`: sách Gulli & Nawalgaria (PDF), ghi chú theo chương `ghi-chu-sach-gulli.md`,
   tài liệu pytest, link CWE-918.
 
-## Trạng thái hiện tại (cập nhật 2026-11-21)
+## Trạng thái hiện tại (cập nhật 2026-11-26)
 
-- Plan hoàn chỉnh (9 Act, M0–M29 + S1–S7, S6b). **M0a (nền móng repo) đã code xong và xanh** (ruff, pyright, 40 test,
-  2026-11-22). Bước tiếp theo: điền LEARNINGS cho M0a, rồi **M0 Một lần gọi API** trong
-  [plans/act-1-api.md](plans/act-1-api.md). Chi tiết việc đang dở: `ROADMAP.md`.
+- **Act I và II xong** (M0a–M9b). **Act III:** M10 (benchmark v0, 8 task trong `bench/tasks/dev/`) và M12
+  (record/replay, trajectory viewer) xong; M11 hoãn vào backlog; M12b chưa làm. **Act IV:** M13 phần lõi xong
+  (fingerprint, feedback, `run_fix_loop`, `LoopAgent`, `bench.run --loop`); đo vòng lặp chờ Act V vì mọi task đến
+  giờ đều được giải ngay lần đầu (Sonnet và Haiku).
+- Bước tiếp theo: M13 phần C (model viết `Goal` từ issue, grill → goal) hoặc D2 (đọc state file để chạy tiếp), rồi
+  M13b → M14 → M14b → Act V. Tiến độ theo Act: bảng "Tiến độ" trong `PLAN.md`; chi tiết việc đang dở: `ROADMAP.md`.
+- 1342 test đơn vị, 40 test Docker (`uv run pytest -m docker`). Chạy benchmark thật chỉ khi người dùng đồng ý và đã
+  nêu ước tính chi phí (`bench.run` không có `--confirm` thì chỉ hiện plan và mức trần).
 - Code, comment, docstring và thông báo lỗi viết bằng **tiếng Anh**; giải thích cho người dùng bằng tiếng Việt.
 
 ## Quyết định đã chốt (đừng mở lại nếu người dùng không hỏi)
