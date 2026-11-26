@@ -1256,4 +1256,12 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   to conclude, but the direction is clear.
 - **Tests written by agents are data, not our code:** the kept reproduction tests under `bench/results/` made ruff
   and pyright report 74 and 162 errors; `bench/results` is now excluded from both.
+- **Second run of reproduce-first, with the header fix (2026-11-26, Haiku, 3 seeds, $0.092):** 8/9 resolved
+  (0.89 ± 0.11), the same as one run (8/9, $0.042), at about 2.2 times the cost; **reproduction rate 9/9**. No run
+  ran out of budget this time (16 tool calls on average for t006, against 31 before): the shared budget is a risk,
+  not yet a cause. The one miss is again a reproduction test narrower than the bug (t001). The fix loop never
+  needed a second attempt.
+- **What M13b gives:** not more resolved tasks on these three, but a way to get a test that was shown to fail for
+  the right reason and to pass with the right fix, written by a cheap model. That is the proof of S4 ("no proof,
+  no finding").
 

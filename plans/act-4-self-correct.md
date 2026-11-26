@@ -185,7 +185,13 @@ Trong bảo mật, test tái hiện chính là **PoC test** chứng minh lỗ h�
 
 Bảng "M13" so với "M13 + test tái hiện" có SEM.
 
-- [ ] Hoàn thành
+- [x] Hoàn thành (2026-11-26). Haiku, 3 seed, trên t001/t002/t006 (không có test nhìn thấy, nên M13 đơn thuần kết
+  thúc `unverifiable`; phép so là với một lần chạy): `--repro` 8/9 (0.89 ± 0.11), một lần chạy 8/9 (0.89 ± 0.11) với
+  giá bằng khoảng 0.45 lần; **tỉ lệ tái hiện 9/9** (đỏ đúng lý do trên bug, xanh với `reference.patch`). Không tăng
+  resolved trên 3 task này; lượt trượt duy nhất là test tái hiện hẹp hơn bug. Vòng sửa không lần nào cần lần thử thứ
+  hai. Chi tiết và lần chạy trước (6/9, có lỗi regex) trong `LEARNINGS.md`.
+- Lệch so với plan: test tái hiện ở `repro/` (không phải `tests/repro/`), vì `tests/` bị cấm ghi trong các task;
+  đo trên `dev` vì chưa có M11.
 
 ---
 

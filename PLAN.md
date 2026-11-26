@@ -389,7 +389,7 @@ Hướng dùng CVE/CWE để xây agent pentest **không nằm trong plan này**
 | [I — Nói chuyện với model](plans/act-1-api.md) | ✅ M0a–M3 (còn tick ô trong file Act) |
 | [II — Harness](plans/act-2-harness.md) | ✅ M4–M9b (còn viết lại LEARNINGS của M5) |
 | [III — Đo lường](plans/act-3-measurement.md) | 🟡 M10, M12 xong · M11 hoãn (backlog) · M12b chưa làm |
-| [IV — Tự sửa sai](plans/act-4-self-correct.md) | 🟡 M13 xong (grill → goal gộp vào M13b; chạy tiếp từ state chờ Act VIII) · M13b đang làm · M14–M16 chưa làm |
+| [IV — Tự sửa sai](plans/act-4-self-correct.md) | 🟡 M13, M13b xong (grill → goal nằm trong M13b; chạy tiếp từ state chờ Act VIII) · M14–M16 chưa làm |
 | [V — Security Agent](plans/act-5-security-agent.md) | ⬜ |
 | [VI — Trí nhớ và kỹ năng](plans/act-6-memory-skills.md) | ⬜ |
 | [VII — Tự vệ](plans/act-7-agent-security.md) | ⬜ |

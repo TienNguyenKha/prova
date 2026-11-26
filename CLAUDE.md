@@ -53,8 +53,8 @@ Mọi lỗ hổng báo ra phải có PoC test chạy được trong sandbox. Đ�
   (record/replay, trajectory viewer) xong; M11 hoãn vào backlog; M12b chưa làm. **Act IV:** M13 phần lõi xong
   (fingerprint, feedback, `run_fix_loop`, `LoopAgent`, `bench.run --loop`); đo vòng lặp chờ Act V vì mọi task đến
   giờ đều được giải ngay lần đầu (Sonnet và Haiku).
-- M13 đã đóng (2026-11-26). Bước tiếp theo: **M13b** (tái hiện trước, sửa sau; gộp cả grill → goal), rồi M14 → M14b →
-  Act V. Tiến độ theo Act: bảng "Tiến độ" trong `PLAN.md`; chi tiết việc đang dở: `ROADMAP.md`.
+- M13 và M13b đã đóng (2026-11-26): `--repro` có tỉ lệ tái hiện 9/9 với Haiku. Bước tiếp theo: **M14** (reviewer tự
+  kiểm hay đối kháng), rồi M14b → Act V. Tiến độ theo Act: bảng "Tiến độ" trong `PLAN.md`; chi tiết việc đang dở: `ROADMAP.md`.
 - 1342 test đơn vị, 40 test Docker (`uv run pytest -m docker`). Chạy benchmark thật chỉ khi người dùng đồng ý và đã
   nêu ước tính chi phí (`bench.run` không có `--confirm` thì chỉ hiện plan và mức trần).
 - Code, comment, docstring và thông báo lỗi viết bằng **tiếng Anh**; giải thích cho người dùng bằng tiếng Việt.
