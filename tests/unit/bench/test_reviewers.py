@@ -12,16 +12,26 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from bench.reviewers import ADVERSARY_TASK, AdversaryReviewer, NoReviewer
+import pytest
+
+from bench.reviewers import (
+    ADVERSARY_TASK,
+    SELF_REVIEW_TASK,
+    AdversaryReviewer,
+    NoReviewer,
+    Review,
+    SelfReviewer,
+)
 from bench.task import Task, load_task
 from prova.agent.budget import Budget, Pricing
 from prova.agent.loop import AgentResult
 from prova.agent.repro import ATTACK_ARGV
+from prova.config import Settings
 from prova.harness.redact import Redactor
 from prova.harness.trajectory import TrajectoryWriter
 from prova.llm.usage import UsageLog, UsageRecord
 from prova.sandbox.base import ExecResult, Sandbox
-from tests.fakes import FakeSandbox
+from tests.fakes import FakeLLM, FakeSandbox, text_message
 from tests.unit.agent.test_repro import ASSERTION, IN_THE_TEST, SUMMARY_LINES, run
 from tests.unit.bench.test_task import make_task
 
@@ -122,3 +132,44 @@ def test_the_attacks_are_kept_next_to_the_trajectory_with_their_verdict(tmp_path
     assert (trajectory.with_name("review-c1-s0.attack") / "test_break.py").is_file()
     kept = json.loads(trajectory.with_name("review-c1-s0.attack.json").read_text(encoding="utf-8"))
     assert kept["valid"] is True and kept["kind"] == "assertion"
+
+
+# --- self-review: the same agent asked to judge, with words only ------------------------------------
+
+
+def self_review(tmp_path: Path, *replies: Any, settings: Settings) -> tuple[Review, FakeLLM]:
+    task, workspace, trajectory, _ = setting(tmp_path, HELD)
+    llm = FakeLLM(list(replies))
+    review = SelfReviewer(llm, settings, system="the system prompt of a fix run")(
+        task, DIFF, workspace, trajectory
+    )
+    return review, llm
+
+
+def test_a_self_review_asks_with_the_fix_system_prompt_and_the_issue_and_patch_as_data(
+    tmp_path: Path, settings: Settings
+) -> None:
+    review, llm = self_review(
+        tmp_path, text_message('{"verdict": "pass", "reason": "looks right"}'), settings=settings
+    )
+    assert review.verdict == "pass" and review.reason == "looks right" and review.evidence is None
+    (call,) = llm.messages.calls
+    user: Any = call.messages[0]["content"]
+    assert call.system == "the system prompt of a fix run"
+    assert user.startswith("<untrusted_issue>") and "+x = 2" in user and SELF_REVIEW_TASK in user
+
+
+def test_a_self_review_may_block_with_words(tmp_path: Path, settings: Settings) -> None:
+    reply = text_message('{"verdict": "block", "reason": "misses the other case"}', usage=(1000, 100))
+    review, _ = self_review(tmp_path, reply, settings=settings)
+    assert review.verdict == "block" and review.reason == "misses the other case"
+    assert review.usage.total_input_tokens == 1000
+
+
+@pytest.mark.parametrize("text", ["not json", '{"verdict": "maybe", "reason": "x"}', '{"verdict": "block"}'])
+def test_a_self_review_that_cannot_be_read_gives_no_verdict_and_is_still_paid_for(
+    tmp_path: Path, settings: Settings, text: str
+) -> None:
+    review, _ = self_review(tmp_path, text_message(text, usage=(1000, 100)), settings=settings)
+    assert review.verdict == "pass" and review.reason.startswith("no verdict")
+    assert review.usage.total_input_tokens == 1000

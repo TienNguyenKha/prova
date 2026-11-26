@@ -1285,4 +1285,8 @@ One run only, on the "bait" question (`m5_tool_runner.py --bait`). The tools are
   attack tests and reads the verdict itself: "block" only for an attack red for the right reason; green attacks,
   an attack broken by its own mistake, cut output or a timeout are "pass", with "no proof" in the reason. The issue
   and the diff go to the model in one untrusted block: the diff, too, was written by another agent.
+- **Self-review is the same agent judging itself, in words:** the system prompt of a fix run, the issue and the
+  diff as data, one structured answer (block or pass, and why), nothing run. A reply that cannot be read gives
+  no verdict ("no verdict" in the reason, so it can be counted) and is still paid for: `extract` now adds the
+  usage of a call before it checks the reply, so a cut or refused reply is not free in the numbers.
 

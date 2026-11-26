@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from prova.config import Settings
 from prova.errors import StructuredErrorKind as Kind
+from prova.llm.usage import UsageLog, UsageRecord
 from prova.structured import (
     BugClassification,
     StructuredError,
@@ -170,3 +171,28 @@ def test_a_rule_without_a_dedicated_kind_is_reported_as_other() -> None:
 
 # TODO(M21): the plan also asks for a caller test ("on StructuredError the guardrail blocks"); there is no
 # guardrail in Prova yet, so that test belongs with the first real caller.
+
+
+# --- what a call costs ---------------------------------------------------------------------------------
+
+
+def test_the_usage_of_the_call_is_added_to_a_log_that_is_handed_in(settings: Settings) -> None:
+    log = UsageLog()
+    log.add(UsageRecord(turn=1, input_tokens=5, output_tokens=5))
+    llm = FakeLLM([text_message(json.dumps(VALID), usage=(100, 20))])
+    extract(llm, BugClassification, system=SYSTEM, user=USER, settings=settings, usage=log)
+    assert [(r.turn, r.input_tokens, r.output_tokens) for r in log.records] == [(1, 5, 5), (2, 100, 20)]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        text_message(json.dumps(VALID), stop_reason="max_tokens", usage=(100, 20)),
+        text_message("not json", usage=(100, 20)),
+    ],
+)
+def test_a_call_that_fails_is_still_paid_for_and_counted(settings: Settings, message: Any) -> None:
+    log = UsageLog()
+    with pytest.raises(StructuredError):
+        extract(FakeLLM([message]), BugClassification, system=SYSTEM, user=USER, settings=settings, usage=log)
+    assert log.total_input_tokens == 100 and log.total_output_tokens == 20

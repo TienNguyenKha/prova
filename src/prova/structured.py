@@ -11,6 +11,7 @@ from prova.errors import StructuredError
 from prova.errors import StructuredErrorKind as Kind
 from prova.llm.client import LLMClient
 from prova.llm.stop import describe_refusal
+from prova.llm.usage import UsageLog, UsageRecord
 from prova.validation import describe_errors
 
 __all__ = [
@@ -31,14 +32,21 @@ class BugClassification(BaseModel):
     reason: str
 
 
-def extract[T: BaseModel](
-    llm: LLMClient, schema: type[T], *, system: str, user: str, settings: Settings
+def extract[T: BaseModel](  # noqa: PLR0913 - the request, and where its cost goes
+    llm: LLMClient,
+    schema: type[T],
+    *,
+    system: str,
+    user: str,
+    settings: Settings,
+    usage: UsageLog | None = None,
 ) -> T:
     """Get one `schema` instance from the model. Raises StructuredError for anything it cannot fully trust.
 
     The API is asked to follow the JSON schema, but that is a request, not a guarantee: constraints such as
     ge/le are only described in text, and a reply can be cut or refused. So the reply is checked and
-    validated again.
+    validated again. With `usage`, what the call cost is added to it first, even when the reply is then
+    refused: a call that failed was still paid for.
     """
     response = llm.messages.create(
         model=settings.model,
@@ -47,6 +55,17 @@ def extract[T: BaseModel](
         system=system,
         output_config={"format": {"type": "json_schema", "schema": transform_schema(schema)}},
     )
+    if usage is not None:
+        used = response.usage
+        usage.add(
+            UsageRecord(
+                turn=len(usage.records) + 1,
+                input_tokens=used.input_tokens,
+                output_tokens=used.output_tokens,
+                cache_creation_input_tokens=used.cache_creation_input_tokens or 0,
+                cache_read_input_tokens=used.cache_read_input_tokens or 0,
+            )
+        )
     check_stop_reason(response)
     text = "".join(block.text for block in response.content if block.type == "text")
     if not text:

@@ -1,4 +1,4 @@
-"""Reviewers of a patch (M14): none, a self-review, and an adversary that may block only with proof.
+"""Reviewers of a patch (M14): none, a self-review in words, and an adversary that may block only with proof.
 
 A reviewer is a function from (task, diff, patched workspace, trajectory) to a Review. The adversary runs
 the product in the `adversary` role on the patched code: it writes attack tests in attack/, and the harness,
@@ -13,12 +13,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from bench.loop_agent import Product, open_session
 from bench.repro_agent import keep_out_of_the_workspace, save_check
 from bench.task import Task
 from prova.agent.repro import ATTACK_ARGV, ATTACK_DIR, ReproCheck, classify_repro
+from prova.config import Settings
+from prova.errors import StructuredError
+from prova.llm.client import LLMClient
 from prova.llm.usage import UsageLog
 from prova.prompts.render import render_user_context
+from prova.structured import extract
 
 Verdict = Literal["block", "pass"]
 ADVERSARY_TASK = (
@@ -26,7 +32,21 @@ ADVERSARY_TASK = (
     f"the code. Try to break the patch: write tests in {ATTACK_DIR}/ that assert what the code should do and "
     "fail on the patched code. Run them before you end."
 )
+SELF_REVIEW_TASK = (
+    "Above are the report of a bug and the patch you wrote to fix it. Review your own patch: does it fix "
+    "the bug the report describes, all of it, without breaking anything else? Answer with a verdict, block "
+    "or pass, and the reason in one or two sentences."
+)
 ATTACK_TIMEOUT_S = 120.0
+
+
+class SelfVerdict(BaseModel):
+    """What a self-review answers. Words only: nothing is run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    verdict: Verdict
+    reason: str = Field(min_length=1)
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +72,27 @@ class NoReviewer:
 
     def __call__(self, task: Task, diff: str, workspace: Path, trajectory: Path) -> Review:
         return Review("pass", "no reviewer")
+
+
+@dataclass(frozen=True, slots=True)
+class SelfReviewer:
+    """The same agent, with the system prompt of a fix run, asked to judge the patch: one call, no tools. A
+    reply that cannot be read gives no verdict, which lets the patch through, and is still paid for."""
+
+    llm: LLMClient
+    settings: Settings
+    system: str  # the system prompt of a fix run (ProductAgent.system)
+
+    def __call__(self, task: Task, diff: str, workspace: Path, trajectory: Path) -> Review:
+        used = UsageLog()
+        user = f"{review_prompt(task, diff)}\n\n{SELF_REVIEW_TASK}"
+        try:
+            answer = extract(
+                self.llm, SelfVerdict, system=self.system, user=user, settings=self.settings, usage=used
+            )
+        except StructuredError as e:
+            return Review("pass", f"no verdict: the review could not be read ({e})", used)
+        return Review(answer.verdict, answer.reason, used)
 
 
 @dataclass(frozen=True, slots=True)
